@@ -1,0 +1,2821 @@
+import React, { useState, useEffect, useRef } from "react";
+import {
+  Leaf, Apple, Wheat, Egg, Milk, Carrot, Heart, Wind,
+  Sparkles, BookOpen, Save, RotateCcw, Loader2, Hexagon, Salad, ChevronDown, LifeBuoy,
+  ChefHat, Info, Trash2, Sprout, CalendarDays, MessagesSquare, ShoppingBasket, Volume2, X
+} from "lucide-react";
+
+/* ---------- design tokens ----------
+  bg:        #EEF0E3  pale sage / parchment
+  surface:   #FBFBF4  soft paper white
+  ink:       #26331F  deep moss (text)
+  inkSoft:   #5B6B52  muted sage (secondary text)
+  gold:      #C99A3B  grain / honey accent
+  clay:      #A85C3B  earth / meat accent (used sparingly, on purpose)
+  calm:      #6E8B8C  blue-grey, the mindfulness color
+  line:      #DDE0CE  hairline borders
+----------------------------------- */
+
+const COLORS = {
+  bg: "#EEF0E3", surface: "#FBFBF4", ink: "#26331F", inkSoft: "#5B6B52",
+  gold: "#C99A3B", clay: "#A85C3B", calm: "#6E8B8C", line: "#DDE0CE",
+};
+
+const FONT_IMPORT = `@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Work+Sans:wght@400;500;600;700&display=swap');`;
+
+// ---------------- food data, grouped by the plan's own rules ----------------
+const FOOD_GROUPS = [
+  {
+    id: "zero-kill",
+    label: "Never requires killing",
+    note: "Fruit, dairy, eggs, honey — nothing dies for these.",
+    icon: Apple,
+    color: COLORS.gold,
+    foods: [
+      { name: "Sliced apple + peanut butter", meal: "snack", protein: 6, carbs: 28 },
+      { name: "Greek yogurt* with berries", meal: "breakfast", protein: 17, carbs: 20 },
+      { name: "Two eggs, any style", meal: "breakfast", protein: 12, carbs: 1 },
+      { name: "Cheese + fruit plate", meal: "lunch", protein: 14, carbs: 18 },
+      { name: "Honey drizzled over yogurt*", meal: "snack", protein: 8, carbs: 22 },
+      { name: "Cut-and-regrow salad greens with olive oil", meal: "lunch", protein: 3, carbs: 6 },
+      { name: "Milk-based smoothie with banana", meal: "breakfast", protein: 10, carbs: 34 },
+      { name: "Roasted asparagus with lemon (perennial — spears regrow yearly)", meal: "dinner", protein: 3, carbs: 5 },
+      { name: "Rhubarb stewed with honey (perennial stalks, root left alive)", meal: "snack", protein: 1, carbs: 20 },
+      { name: "Steamed globe artichoke with butter (bud only, plant survives)", meal: "dinner", protein: 4, carbs: 14 },
+      { name: "Chive & herb omelette (herbs cut, not uprooted)", meal: "breakfast", protein: 13, carbs: 2 },
+      { name: "Watercress and goat cheese salad", meal: "lunch", protein: 9, carbs: 4 },
+      { name: "Arugula salad with shaved cheese", meal: "lunch", protein: 8, carbs: 5 },
+    ],
+  },
+  {
+    id: "seeds-grains",
+    label: "Seeds & grains — leave enough behind",
+    note: "Never all of a seed supply. Whole grains, beans, lentils, nuts.",
+    icon: Wheat,
+    color: "#8A9A46",
+    foods: [
+      { name: "Lentil soup", meal: "lunch", protein: 18, carbs: 40 },
+      { name: "Oatmeal with walnuts", meal: "breakfast", protein: 9, carbs: 45 },
+      { name: "Brown rice + black beans bowl", meal: "dinner", protein: 15, carbs: 55 },
+      { name: "Hummus with whole-grain pita", meal: "snack", protein: 8, carbs: 30 },
+      { name: "Mixed nuts, small handful", meal: "snack", protein: 6, carbs: 8 },
+      { name: "Sprouted-grain toast with egg", meal: "breakfast", protein: 14, carbs: 24 },
+    ],
+  },
+  {
+    id: "sparing-veg",
+    label: "Eat sparingly, waste nothing",
+    note: "Root & whole vegetables — use the whole thing, buy only what you'll eat.",
+    icon: Carrot,
+    color: COLORS.clay,
+    foods: [
+      { name: "Roasted carrots, tops included in stock", meal: "dinner", protein: 2, carbs: 15 },
+      { name: "Potato, skin on, roasted", meal: "dinner", protein: 4, carbs: 30 },
+      { name: "Broccoli, stems and all, stir-fried", meal: "dinner", protein: 5, carbs: 12 },
+      { name: "Vegetable scrap broth", meal: "lunch", protein: 2, carbs: 6 },
+    ],
+  },
+  {
+    id: "meat-rare",
+    label: "Meat — eaten with honor, when we must",
+    note: "Packaged meat is already dead — the cost is paid whether or not you buy it. Near-expired meat rescues food headed for the trash, and that's a kind choice, but any meat can be honored: eat it rarely, with gratitude, and waste none of it.",
+    icon: Salad,
+    color: "#7A5C3E",
+    foods: [
+      { name: "Roast chicken thigh", meal: "dinner", protein: 26, carbs: 0 },
+      { name: "Simple beef stew", meal: "dinner", protein: 24, carbs: 8 },
+      { name: "Pan-seared fish fillet", meal: "dinner", protein: 22, carbs: 0 },
+      { name: "Near-expired finds, frozen same day (a rescue when you spot one)", meal: "dinner", protein: 24, carbs: 2 },
+    ],
+  },
+];
+
+// Educational content on presence and gratitude, drawn from many traditions.
+// Written in plain language, each one paraphrased and none placed above another.
+const TRADITIONS = [
+  {
+    id: "buddhism",
+    name: "Buddhist mindfulness",
+    idea: "Eating slowly, and really paying attention, turns a meal into a practice instead of something done on autopilot.",
+    practice: "Before your first bite, take three slow breaths. Notice the food's color, smell, and warmth before you eat it.",
+    when: "Start of every meal.",
+  },
+  {
+    id: "jainism",
+    name: "Jain non-harm (called ahimsa, meaning 'not harming')",
+    idea: "Every living thing, no matter how small, deserves care. Some Jain practices go as far as being careful about tiny insects in water, and favoring foods like fruit that don't kill the plant when picked.",
+    practice: "Before you shop or cook, ask: did something have to die for this? If yes, take only what you'll actually use.",
+    when: "Before shopping or cooking, not just at the table.",
+  },
+  {
+    id: "hinduism",
+    name: "Hindu offering (called naivedya)",
+    idea: "In some Hindu households, food is mentally offered to the divine before it's eaten, which turns the meal into something sacred rather than just fuel.",
+    practice: "Before eating, give a silent thank-you to the sun, rain, and soil that grew your food.",
+    when: "Before the first bite.",
+  },
+  {
+    id: "judaism",
+    name: "Jewish blessings (called brachot)",
+    idea: "Traditional Jewish practice includes short blessings before eating and a longer one after (Birkat Hamazon), treating food as a gift rather than something owed to you.",
+    practice: "Name one thing you're grateful for before you eat, and one thing after.",
+    when: "Before and after the meal.",
+  },
+  {
+    id: "christianity",
+    name: "Christian grace",
+    idea: "Saying a short thank-you before a meal ('grace') is a common practice across many Christian traditions, along with the broader idea of caring well for the earth.",
+    practice: "A short thank-you, silent or spoken, before you start eating.",
+    when: "Before the meal.",
+  },
+  {
+    id: "islam",
+    name: "Islamic table manners",
+    idea: "Common practice includes saying 'Bismillah' (meaning 'in the name of God') before eating and a short thanks after, along with a strong value placed on not wasting food and not overeating.",
+    practice: "Pause to give thanks before eating, and stop eating before you feel overly full.",
+    when: "Before eating, and as a check partway through.",
+  },
+  {
+    id: "taoism",
+    name: "Taoist simplicity",
+    idea: "Eating what's in season, without excess, and letting a meal be unhurried reflects the Taoist idea of moving with nature's rhythm instead of against it.",
+    practice: "Let the meal take as long as it takes. Don't rush it to get to the next thing.",
+    when: "Throughout the meal.",
+  },
+  {
+    id: "indigenous",
+    name: "Indigenous traditions (many, from many different nations)",
+    idea: "Across many different Indigenous nations and regions, worldwide, a common thread appears: thanking an animal or plant by name for its life, treating the taking of food as a relationship, not just a transaction.",
+    practice: "Name the source of your food out loud or silently — the animal, the plant, the farmer — and thank it, especially for meat.",
+    when: "Before eating, especially meat.",
+  },
+  {
+    id: "secular",
+    name: "Secular gratitude practice",
+    idea: "You don't need a belief system for this to work. Simply noticing what you have, on purpose, is well-studied and tends to calm the mind and reduce mindless eating.",
+    practice: "Name three things about this meal you're genuinely glad for. No ritual required.",
+    when: "Anytime — no set moment needed.",
+  },
+];
+
+// Cautionary history: even devout, disciplined people, across many traditions,
+// have taken devotion to a harmful extreme. These are included as warnings, not models.
+const CAUTIONS = [
+  {
+    tradition: "Buddhism",
+    story: "Before he taught anything, the man who became the Buddha spent years nearly starving himself, believing it would bring him closer to truth. He grew so weak he nearly died, and gained nothing from it. Afterward, he taught the opposite: a 'Middle Way,' rejecting both excess and self-denial.",
+    lesson: "Even the founder of a major faith tried extreme self-denial first, and rejected it as a mistake.",
+  },
+  {
+    tradition: "Christianity",
+    story: "Early Christian desert monks sometimes fasted to extremes that damaged their health. Later monastic rules, like the Rule of Saint Benedict, deliberately pulled this back, setting out sensible, sustainable amounts of food, precisely because earlier extremes had caused harm.",
+    lesson: "The tradition itself corrected course once it saw the damage.",
+  },
+  {
+    tradition: "Judaism",
+    story: "Jewish law includes a principle called pikuach nefesh, meaning the preservation of life. It overrides nearly every other religious rule, including fasting — even on the holiest fast day of the year, a person is required to eat if their health is at risk.",
+    lesson: "Protecting your body isn't a failure of devotion. In this tradition, it's the law itself.",
+  },
+  {
+    tradition: "Islam",
+    story: "Islamic teaching includes a recognized concept called waswas — obsessive, looping religious doubt or fear of sin. It's treated as a harmful mental state to be resisted, not a sign of holiness. Moderation is explicitly valued over extremes.",
+    lesson: "Obsessing over purity isn't extra devotion. It's recognized as its own problem.",
+  },
+  {
+    tradition: "Jainism",
+    story: "Ahimsa, non-harm, applies to your own body too. Serious fasting practices in this tradition are not private decisions made alone in distress — they involve community and oversight, precisely because unsupervised extreme fasting is recognized as dangerous.",
+    lesson: "Even a faith built around minimizing harm treats self-starvation as a risk to guard against, not a goal.",
+  },
+];
+
+const MEALS = ["breakfast", "lunch", "dinner", "snack"];
+const ACTIVITY = [
+  { id: "sedentary", label: "Mostly sitting", mult: 1.2 },
+  { id: "light", label: "Light movement most days", mult: 1.375 },
+  { id: "moderate", label: "Exercise a few times a week", mult: 1.55 },
+  { id: "active", label: "Exercise most days", mult: 1.725 },
+];
+const GOALS = [
+  { id: "maintain", label: "Stay where I am", cals: 0, protein: 1.4 },
+  { id: "build", label: "Gently build strength", cals: 250, protein: 1.8 },
+  { id: "ease", label: "Gently ease down", cals: -250, protein: 1.6 },
+];
+
+const BREATH_PHASES = [
+  { key: "in", label: "Breathe in", seconds: 4 },
+  { key: "hold", label: "Hold", seconds: 4 },
+  { key: "out", label: "Breathe out", seconds: 6 },
+];
+
+// Seasonal zero-kill foods, by season. Seasons differ by hemisphere,
+// so the user can flip if needed. Kept general — exact timing varies by region.
+// Note: many "vegetables" are botanically fruits (peppers, squash, peas, etc.) —
+// picking them doesn't kill the plant, which keeps producing. Those all belong here.
+const SEASONS = [
+  {
+    id: "spring", label: "Spring",
+    fruits: ["Strawberries", "Early cherries", "Apricots", "Loquats", "Avocados", "Pineapple", "Mango (early)", "Lemons & limes", "Kumquats"],
+    veggies: ["Asparagus spears (perennial)", "Rhubarb stalks (perennial)", "Artichoke buds (perennial)", "Peas & pea pods (plant keeps producing)", "Snow & snap peas", "Fava bean pods", "Spinach (outer leaves)", "Lettuce (cut-and-regrow)", "Arugula", "Watercress", "Sorrel (perennial)", "Chives (perennial)", "Fresh herbs — mint, parsley, cilantro, dill", "Grape leaves", "Green garlic tops (bulb left in ground)", "Nettle tops (perennial)"],
+    animal: ["Fresh goat cheese", "Sheep's milk cheese", "Eggs (spring is peak laying)", "Spring honey", "Yogurt & kefir*"],
+  },
+  {
+    id: "summer", label: "Summer",
+    fruits: ["Berries — straw, blue, rasp, black", "Peaches & nectarines", "Plums & pluots", "Cherries", "Melons — watermelon, cantaloupe, honeydew", "Figs (first crop)", "Grapes (early)", "Mangoes", "Papaya", "Passionfruit", "Tomatoes (botanically fruit)", "Currants & gooseberries"],
+    veggies: ["Cucumbers (plant keeps producing)", "Zucchini & summer squash (same)", "Bell & chili peppers (same)", "Eggplant (same)", "Okra (same)", "Green beans & pole beans (same)", "Squash blossoms (male flowers only — fruit still comes)", "Basil & summer herbs (cut, not uprooted)", "Chard (outer leaves)", "New Zealand spinach (perennial in warm places)", "Purslane", "Malabar spinach (vine keeps growing)"],
+    animal: ["Fresh milk & yogurt*", "Halloumi & grilling cheeses", "Eggs", "Wildflower honey"],
+  },
+  {
+    id: "fall", label: "Fall",
+    fruits: ["Apples & pears", "Grapes", "Figs (main crop)", "Late raspberries", "Cranberries", "Pomegranates", "Persimmons", "Quince", "Kiwi (early)", "Winter squash & pumpkins (botanically fruit — vine dies back seasonally on its own)", "Olives", "Dates"],
+    veggies: ["Kale (outer leaves)", "Collards (outer leaves)", "Chard (outer leaves)", "Brussels sprouts (sprouts picked, stalk lives on the season)", "Late peppers & eggplant", "Late beans", "Perennial herbs — rosemary, thyme, sage, oregano", "Jerusalem artichoke tops (tubers optional)", "Cardoon stalks (perennial)"],
+    animal: ["Aged cheeses", "Eggs", "Fall honey", "Yogurt & aged kefir*"],
+  },
+  {
+    id: "winter", label: "Winter",
+    fruits: ["Citrus — oranges, grapefruit, mandarins, lemons", "Stored apples & pears", "Pomegranates", "Kiwi", "Bananas (tropical, year-round)", "Pineapple", "Dates & dried figs", "Persimmons (late)"],
+    veggies: ["Hardy kale & collards (outer leaves)", "Winter chard", "Claytonia / miner's lettuce", "Mâche (cut-and-regrow)", "Winter cress", "Sprouted seeds & microgreens grown at home (a few seeds spared from many)", "Perennial herbs under cover", "Stored winter squash (picked in fall)"],
+    animal: ["Eggs (hens lay year-round)", "Milk, cheese, yogurt*", "Kefir & cultured butter*", "Stored honey"],
+  },
+];
+
+function currentSeasonId(hemisphere) {
+  const m = new Date().getMonth(); // 0-11
+  let id;
+  if (m >= 2 && m <= 4) id = "spring";
+  else if (m >= 5 && m <= 7) id = "summer";
+  else if (m >= 8 && m <= 10) id = "fall";
+  else id = "winter";
+  if (hemisphere === "south") {
+    const flip = { spring: "fall", summer: "winter", fall: "spring", winter: "summer" };
+    id = flip[id];
+  }
+  return id;
+}
+
+// Short, honest facts about where zero-kill foods come from.
+// Written plainly, neither romanticized nor grim — just true.
+const LIFE_LIBRARY = [
+  {
+    id: "milk",
+    name: "Milk, cheese & yogurt",
+    body: "Milk comes from a mother animal — usually a cow, goat, or sheep — who produces it after giving birth. On husbandry farms she's milked once or twice a day and lives on for years, giving milk through many seasons. The care she receives varies a lot from farm to farm, which is why some people seek out small or certified-humane dairies. Cheese and yogurt are that same milk, transformed by time and helpful bacteria.",
+  },
+  {
+    id: "eggs",
+    name: "Eggs",
+    body: "A hen lays eggs regularly whether or not a rooster is around. Without a rooster, the eggs are unfertilized — no chick was ever going to grow in them, so nothing dies. A healthy hen can lay for years. Labels like 'pasture-raised' say something about how much space and outdoor life she gets.",
+  },
+  {
+    id: "honey",
+    name: "Honey",
+    body: "Bees make honey as their winter food supply, visiting over a million flowers for a single jar. A careful beekeeper takes only the surplus and leaves the hive enough to survive the cold months. The bees live on, and their pollination quietly helps grow much of the fruit on this list.",
+  },
+  {
+    id: "fruit",
+    name: "Fruit",
+    body: "Fruit is the one food that's freely offered. The plant wraps its seeds in something sweet on purpose — so animals will eat it and carry the seeds somewhere new. Picking an apple doesn't harm the tree; it's participating in the plan the tree already had.",
+  },
+  {
+    id: "greens",
+    name: "Cut-and-regrow greens",
+    body: "Lettuce, kale, chard, arugula, and herbs grow from the center outward. Take only the outer leaves and the plant keeps living and making more — like a haircut, not a harvest. The same plant can feed you for a whole season.",
+  },
+  {
+    id: "meat",
+    name: "Meat (for the rare days)",
+    body: "An animal lived and died for this food — that's the plain truth, and it's why this app treats meat as rare and precious. Packaged meat on the shelf is already dead; the cost was paid before you arrived. Choosing near-expired meat additionally rescues a life's worth of food from the trash, but any meat can be honored the same way: eaten rarely, with gratitude, cooked with attention, and wasted not at all.",
+  },
+  {
+    id: "waste-nothing",
+    name: "Waste nothing — bones, scraps & trimmings",
+    body: "If a life was given, the kindest thing we can do is let none of it go in the bin. Nearly every part of an animal can feed you, feed the soil, or flavor a week of meals. Marrow is the soft core inside a bone — rich fat, plus collagen (the protein that makes broth silky and helps joints and skin), vitamin B12, and real iron: roughly 1–2 milligrams per spoonful. That's about 10–25% of a full day's iron, depending on who you are — the daily value is 8 mg for men and post-menopausal women, 18 mg for women of reproductive age. Nutrition, not scraps. The bone itself is the mineral vault: calcium, phosphorus, and magnesium. Those minerals leave the bone slowly — a splash of vinegar in the pot helps, because acid gently dissolves bone mineral into the broth.",
+    lists: [
+      {
+        title: "Bones you can chew and eat",
+        items: [
+          "Soft cartilage — the rubbery white tips on chicken drumsticks, wings, and breastbone. Safe, and full of collagen.",
+          "Chicken and duck feet — simmered soft; the skin and pads are eaten, the tiny bones are not.",
+          "Small fish, fried or grilled crisp — sardines, smelt, anchovies. Bones become brittle and crumble; a strong source of calcium.",
+          "Canned salmon or sardine bones — pressure-cooking has already turned them chalk-soft. Mash them in.",
+          "Any bone pressure-cooked until it mashes between two fingers.",
+          "Soft-cooked poultry bones, eaten by technique: kitchen traditions around the world carefully work them down. The method matters — see below.",
+        ],
+      },
+      {
+        title: "The careful-chewing technique — and when to boil instead",
+        items: [
+          "The technique: work slowly, in small pieces, chewing each fully until it turns mealy — soft and grainy like coarse meal — before swallowing. Never gulp a fragment. Your mouth is the inspector: anything that still feels sharp or splintery gets spat out and goes to the broth pot.",
+          "Long, moist cooking is what makes this possible — simmering, stewing, or pressure-cooking softens bone. Dry roasting does the opposite: it makes bones brittle and splintery. Roasted bones belong in the pot, not the mouth.",
+          "All large mammal bones — beef, pork, lamb — are too hard for human teeth no matter the cooking; they can crack a molar. Those are always for broth.",
+          "Honest rule of thumb: if it gives under firm pressure and chews down to mealy, it can be eaten with care. If it resists or splinters, it belongs in broth. When unsure, the pot is never wrong.",
+        ],
+      },
+      {
+        title: "How to use every part",
+        items: [
+          "Roast the bones first — browning them deepens the flavor of the broth enormously.",
+          "Simmer low and slow: 3–4 hours for poultry, 8–24 for beef or pork. Add a spoonful of vinegar at the start.",
+          "Skim the fat from the cooled broth and keep it — it's excellent cooking fat.",
+          "Render trimmings and skin into cooking fat; the crispy leftover bits are a snack in themselves.",
+          "Simmer a second batch from the same bones — thinner, but still good soup.",
+          "Freeze a scrap bag: onion ends, carrot tops, herb stems, parmesan rinds. When it's full, it becomes stock.",
+          "Dry and crush spent bones into bone meal for the garden. The gift completes its circle and feeds next season's plants.",
+        ],
+      },
+      {
+        title: "Lessons from traditional kitchens",
+        items: [
+          "Jewish kitchens: chicken fat rendered into schmaltz for cooking, the crisp skin becoming gribenes, and the carcass becoming soup.",
+          "Vietnam and Japan: beef bones simmered a full day for pho; pork bones boiled hard for tonkotsu ramen — the milky color is dissolved marrow and collagen.",
+          "China: chicken feet steamed for dim sum; necks, gizzards, and hearts all eaten with care.",
+          "Indigenous North America: bones cracked for marrow, then boiled into bone grease — a prized fat mixed with dried meat and berries to make pemmican, a travel food that kept for years.",
+          "Italy and England: osso buco, marrow bone still in the shank; roasted marrow scooped onto toast.",
+          "Mexico: menudo and birria — long, patient stews from the tough cuts, feet, and tripe.",
+          "West Africa and the Caribbean: smoked or salted bones and tails used as the deep savory base of a whole pot of beans or greens.",
+        ],
+      },
+    ],
+  },
+];
+
+// ---------------- complete protein: the plant-based amino acid engine ----------------
+// A "complete protein" simply means a food (or a pairing) that supplies all nine
+// essential amino acids — the protein building blocks the body cannot make itself.
+// In practice only two of the nine are ever really in question for plant eaters:
+//   lysine     — plentiful in beans, lentils, peas, peanuts (legumes)
+//   methionine — plentiful in grains, nuts, and seeds
+// So the classic move is simply: legume + grain (or legume + nut/seed).
+// Modern nutrition is clear that these do NOT need to land in the same meal —
+// eating both across the same day is enough.
+const PROTEIN_FOODS = [
+  // complete on their own
+  { id: "tofu", name: "Tofu", group: "complete", protein: 10, cost: 0.55, serving: "1/2 cup" },
+  { id: "tempeh", name: "Tempeh", group: "complete", protein: 17, cost: 0.9, serving: "1/2 cup" },
+  { id: "edamame", name: "Edamame (young soybeans)", group: "complete", protein: 9, cost: 0.7, serving: "1/2 cup" },
+  { id: "soymilk", name: "Soy milk", group: "complete", protein: 7, cost: 0.6, serving: "1 cup" },
+  { id: "quinoa", name: "Quinoa", group: "complete", protein: 8, cost: 1.3, serving: "1 cup cooked" },
+  { id: "buckwheat", name: "Buckwheat (kasha, soba)", group: "complete", protein: 6, cost: 1.1, serving: "1 cup cooked" },
+  { id: "amaranth", name: "Amaranth", group: "complete", protein: 9, cost: 1.4, serving: "1 cup cooked" },
+  { id: "hemp", name: "Hemp seeds", group: "complete", protein: 10, cost: 2.4, serving: "3 tbsp" },
+  { id: "chia", name: "Chia seeds", group: "complete", protein: 5, cost: 2.0, serving: "2 tbsp" },
+  { id: "spirulina", name: "Spirulina", group: "complete", protein: 8, cost: 3.5, serving: "2 tbsp" },
+  { id: "nutyeast", name: "Nutritional yeast", group: "complete", protein: 8, cost: 1.6, serving: "2 tbsp" },
+  { id: "pistachio", name: "Pistachios", group: "complete", protein: 6, cost: 2.6, serving: "1 oz" },
+  // legumes — rich in lysine, short on methionine
+  { id: "lentils", name: "Lentils", group: "legume", protein: 18, cost: 0.25, serving: "1 cup cooked" },
+  { id: "blackbeans", name: "Black beans", group: "legume", protein: 15, cost: 0.3, serving: "1 cup cooked" },
+  { id: "chickpeas", name: "Chickpeas", group: "legume", protein: 15, cost: 0.35, serving: "1 cup cooked" },
+  { id: "kidney", name: "Kidney or pinto beans", group: "legume", protein: 15, cost: 0.3, serving: "1 cup cooked" },
+  { id: "splitpeas", name: "Split peas", group: "legume", protein: 16, cost: 0.25, serving: "1 cup cooked" },
+  { id: "peanut", name: "Peanuts / peanut butter", group: "legume", protein: 8, cost: 0.5, serving: "2 tbsp" },
+  { id: "greenpeas", name: "Green peas", group: "legume", protein: 8, cost: 0.6, serving: "1 cup" },
+  // grains — rich in methionine, short on lysine
+  { id: "rice", name: "Brown rice", group: "grain", protein: 5, cost: 0.3, serving: "1 cup cooked" },
+  { id: "oats", name: "Oats", group: "grain", protein: 6, cost: 0.25, serving: "1 cup cooked" },
+  { id: "bread", name: "Whole-grain bread or pita", group: "grain", protein: 8, cost: 0.6, serving: "2 slices" },
+  { id: "pasta", name: "Whole-wheat pasta", group: "grain", protein: 8, cost: 0.5, serving: "1 cup cooked" },
+  { id: "corn", name: "Corn or corn tortillas", group: "grain", protein: 6, cost: 0.4, serving: "2 tortillas" },
+  { id: "barley", name: "Barley", group: "grain", protein: 4, cost: 0.3, serving: "1 cup cooked" },
+  { id: "teff", name: "Teff (injera)", group: "grain", protein: 10, cost: 1.2, serving: "1 cup cooked" },
+  // nuts & seeds — like grains: methionine yes, lysine short
+  { id: "almond", name: "Almonds", group: "nutseed", protein: 6, cost: 2.2, serving: "1 oz" },
+  { id: "walnut", name: "Walnuts", group: "nutseed", protein: 4, cost: 2.8, serving: "1 oz" },
+  { id: "sunflower", name: "Sunflower seeds", group: "nutseed", protein: 6, cost: 0.9, serving: "1 oz" },
+  { id: "pumpkinseed", name: "Pumpkin seeds", group: "nutseed", protein: 7, cost: 1.5, serving: "1 oz" },
+  { id: "sesame", name: "Sesame seeds / tahini", group: "nutseed", protein: 5, cost: 1.3, serving: "2 tbsp" },
+  { id: "cashew", name: "Cashews", group: "nutseed", protein: 5, cost: 2.4, serving: "1 oz" },
+  // zero-kill animal foods — already complete, and they fit the sparing rules
+  { id: "eggs", name: "Eggs", group: "animal-complete", protein: 6, cost: 0.35, serving: "1 egg" },
+  { id: "yogurt", name: "Greek yogurt*", group: "animal-complete", protein: 17, cost: 1.1, serving: "1 cup" },
+  { id: "cheese", name: "Cheese", group: "animal-complete", protein: 7, cost: 0.9, serving: "1 oz" },
+  { id: "milk", name: "Milk", group: "animal-complete", protein: 8, cost: 0.35, serving: "1 cup" },
+];
+
+const PROTEIN_GROUP_LABELS = {
+  complete: "Complete plant protein — all nine on its own",
+  "animal-complete": "Complete, and zero-kill",
+  legume: "Legumes — lysine-rich, methionine-short",
+  grain: "Grains — methionine-rich, lysine-short",
+  nutseed: "Nuts & seeds — methionine-rich, lysine-short",
+};
+
+// Which classic pairing each culture arrived at, long before anyone knew the word "amino acid".
+const PROTEIN_TRADITIONS = [
+  { pair: "Rice + beans", where: "Latin America, the Caribbean, the American South" },
+  { pair: "Corn tortillas + beans", where: "Mexico and Central America" },
+  { pair: "Dal (lentils) + rice or roti", where: "India and Nepal" },
+  { pair: "Hummus (chickpeas) + pita", where: "the Levant and the eastern Mediterranean" },
+  { pair: "Injera (teff) + misir wot (lentils)", where: "Ethiopia and Eritrea" },
+  { pair: "Peanut stew + rice or fufu", where: "West Africa" },
+  { pair: "Tofu or miso + rice", where: "Japan, Korea, and China" },
+  { pair: "Pasta e fagioli (pasta + beans)", where: "Italy" },
+  { pair: "Peanut butter on whole-grain bread", where: "modern kitchens everywhere" },
+];
+
+// The engine. Given a list of selected food ids, decide whether the protein is complete,
+// and if not, name exactly what would finish it.
+function analyzeProtein(selectedIds) {
+  const picked = PROTEIN_FOODS.filter((f) => selectedIds.includes(f.id));
+  const totalProtein = picked.reduce((s, f) => s + f.protein, 0);
+  const groups = new Set(picked.map((f) => f.group));
+
+  const hasComplete = groups.has("complete") || groups.has("animal-complete");
+  const hasLegume = groups.has("legume");
+  const hasGrainOrSeed = groups.has("grain") || groups.has("nutseed");
+
+  // Which of the two limiting amino acids are covered?
+  const lysineOk = hasComplete || hasLegume;
+  const methionineOk = hasComplete || hasGrainOrSeed;
+  const complete = lysineOk && methionineOk;
+
+  let need = null;
+  let suggestions = [];
+  if (!picked.length) {
+    need = "empty";
+  } else if (complete) {
+    need = "none";
+  } else if (!methionineOk) {
+    // they have legumes only — they need a grain, nut, or seed
+    need = "methionine";
+    suggestions = PROTEIN_FOODS.filter((f) => f.group === "grain" || f.group === "nutseed")
+      .sort((a, b) => a.cost - b.cost).slice(0, 6);
+  } else {
+    // they have grains/nuts/seeds only — they need a legume
+    need = "lysine";
+    suggestions = PROTEIN_FOODS.filter((f) => f.group === "legume")
+      .sort((a, b) => a.cost - b.cost).slice(0, 6);
+  }
+
+  // A single complete food always finishes the job too, whatever is missing.
+  const shortcuts = PROTEIN_FOODS.filter((f) => f.group === "complete")
+    .sort((a, b) => a.cost - b.cost).slice(0, 4);
+
+  // Rough cost of the plate, and cost per 10 g of protein.
+  const cost = picked.reduce((s, f) => s + f.cost, 0);
+  const costPer10 = totalProtein > 0 ? (cost / totalProtein) * 10 : 0;
+
+  return { picked, totalProtein, complete, need, suggestions, shortcuts, cost, costPer10, lysineOk, methionineOk };
+}
+
+// Conversation starters for the table, drawn from the spirit of the traditions section.
+const TABLE_CARDS = [
+  "Who touched this food before it reached us? Name as many hands as you can — the grower, the picker, the driver, the grocer, the cook.",
+  "What on this table came from something still living — a tree still standing, a hen still laying, a hive still humming?",
+  "What's one meal from your childhood you wish you could eat one more time? Who made it?",
+  "If this food could hear you, what would you want to say to it?",
+  "What are you hungry for this week that isn't food?",
+  "Which of us at this table did something kind recently that the rest of us don't know about?",
+  "What's growing in your life right now — literally or otherwise?",
+  "Rain, soil, and sunlight are all in this meal somewhere. Which do you think worked hardest for it?",
+  "What's one thing you want to have grown or learned by this time next year?",
+  "If you could thank one person who's no longer here for something they fed you — food or otherwise — who would it be?",
+  "What did you almost waste this week but saved instead?",
+  "What's the most alive you've felt this month?",
+];
+
+// ---------------- the philosophy: where it comes from ----------------
+const PHILOSOPHY_ROOTS = [
+  { name: "Ahimsa", origin: "Jainism, Hinduism, Buddhism", idea: "Non-harm toward all living beings. The oldest, deepest root: cause the least suffering you can." },
+  { name: "Mindful eating", origin: "Buddhist practice, now worldwide", idea: "Being fully present while eating — tasting, noticing, not rushing." },
+  { name: "The Honorable Harvest", origin: "Indigenous teaching, shared by Robin Wall Kimmerer", idea: "Ask permission. Take only what you need. Use everything you take. Give something back." },
+  { name: "Stewardship", origin: "Many faiths and secular ethics alike", idea: "Caring for the living world rather than exploiting it — we are keepers, not owners." },
+  { name: "Sacred ecology & animism", origin: "Indigenous and ancient worldviews", idea: "Nature is alive and worthy of respect throughout — and humans are part of it, not above it." },
+  { name: "Gratitude practice", origin: "Nearly every culture on Earth", idea: "Pausing to give thanks before meals — grace, a blessing, or a silent moment." },
+];
+
+// ---------------- life impact: a quiet daily reflection (no streaks, no scores to chase) ----------------
+const IMPACT_QUESTIONS = [
+  { id: "no-death", label: "Chose foods that required no killing" },
+  { id: "rescued", label: "Rescued food from being wasted — near-expired, leftovers, imperfect produce" },
+  { id: "whole-use", label: "Used the whole food — scraps, bones, peels, stems" },
+  { id: "composted", label: "Composted instead of trashing" },
+  { id: "seeds-saved", label: "Saved seeds from something eaten" },
+  { id: "planted", label: "Planted or tended something living" },
+  { id: "local", label: "Chose local food — farmers market, nearby farm, your own garden" },
+  { id: "gratitude", label: "Paused for gratitude before a meal" },
+];
+
+// ---------------- give life back: challenges to try, whenever you like ----------------
+const CHALLENGES = [
+  { id: "c1", label: "Save the seeds from one fruit or vegetable you eat this week. Dry them on a paper towel and store them in a labeled envelope." },
+  { id: "c2", label: "Regrow a green onion: stand the white root end in a glass of water on a windowsill. New green in about a week." },
+  { id: "c3", label: "Start a freezer scrap bag for broth — onion ends, carrot tops, herb stems. When it's full, it becomes stock." },
+  { id: "c4", label: "Plant one thing — a seed, a herb pot, a tree if you're able. Anything that will be alive because of you." },
+  { id: "c5", label: "Put out clean water for birds and pollinators — a shallow dish with a few pebbles to land on." },
+  { id: "c6", label: "Let one corner of the yard grow wild this season — unmowed grass and 'weeds' feed more life than any lawn." },
+  { id: "c7", label: "Compost for one full week — every peel, every coffee ground. Notice how little trash is left." },
+  { id: "c8", label: "Buy one meal's ingredients from a local farmer, and ask them how the food was grown." },
+  { id: "c9", label: "Cook one rescue meal built entirely from things that would otherwise have been thrown away." },
+  { id: "c10", label: "Plant something pollinator-friendly — sunflower, lavender, or a native wildflower mix for your region." },
+  { id: "c11", label: "Share food — extra harvest, an extra portion, a planned meal — with a neighbor or someone who needs it." },
+  { id: "c12", label: "Before one meal this week, name where each ingredient came from, as best you can." },
+];
+
+// ---------------- living guides: practices that give life back ----------------
+const LIVING_GUIDES = [
+  {
+    id: "grow-your-own",
+    name: "Grow your own — start from scraps",
+    body: "Nothing honors food like growing it. You don't need land, a green thumb, or money to begin — the food in your kitchen is already trying to live again.",
+    lists: [
+      { title: "Regrow from kitchen scraps (water + a windowsill)", items: [
+        "Green onions — stand the white root ends in water; regrows in a week, forever.",
+        "Lettuce & celery — set the cut base in a shallow dish of water; new leaves rise from the center.",
+        "Herbs — a cut stem of basil or mint grows roots in water, then moves to soil.",
+        "Ginger & garlic — a sprouting piece planted in soil becomes a whole new plant.",
+        "Potato & sweet potato — one sprouted, planted, returns many.",
+      ]},
+      { title: "A first container garden (any sunny spot)", items: [
+        "Start with the generous ones: cherry tomatoes, salad greens, herbs, peppers — all happy in pots.",
+        "A pot needs three things: drainage holes, decent soil, and about 6 hours of sun. That's the whole secret.",
+        "Favor cut-and-come-again crops — lettuce, kale, chard, herbs — where you harvest leaves and the plant keeps living. Zero-kill food from your own hands.",
+        "Water when the top inch of soil feels dry. Most beginner plants die from too much love, not too little.",
+      ]},
+    ],
+  },
+  {
+    id: "hugelkultur",
+    name: "Hugelkultur — garden beds built from fallen trees",
+    diagrams: true,
+    body: "Hugelkultur (HOO-gul-culture, German for 'mound culture') is an old European way of building a garden bed on top of buried wood. Logs and branches — the kind storms leave lying around — go at the bottom; soil goes on top. As the wood slowly rots, it acts like a sponge that holds rainwater for weeks and a slow-release fertilizer that feeds plants for years. A big bed can go seasons with almost no watering. It's the waste-nothing idea at garden scale: dead trees become living food. And if your property has fallen wood, brush, leaves, and some soil to move — the whole thing can be built for free.",
+    lists: [
+      { title: "The layers (same recipe for every version, bottom to top)", items: [
+        "1. Big logs and stumps — the water-holding heart of the bed. Rot-prone woods like alder, poplar, birch, apple, oak are perfect. Avoid woods that resist rot or fight plants: cedar, black locust, and black walnut (walnut releases a chemical that stunts vegetables).",
+        "2. Branches and sticks — pack them into the gaps between logs.",
+        "3. Green material — grass clippings, fresh leaves, kitchen scraps, manure if you have it. This nitrogen-rich layer feeds the microbes that will digest the wood.",
+        "4. Compost or rotted leaves — the transition to real soil.",
+        "5. Topsoil, 4–6 inches (10–15 cm) — what you actually plant into.",
+        "6. Mulch — straw or leaves on top to hold moisture while the bed settles.",
+      ]},
+      { title: "Version 1 — the classic mound (free-form, no walls)", items: [
+        "Optional but worth it: dig a trench 1 foot (30 cm) deep where the bed will sit, and set the sod and soil aside — you'll use it back on top.",
+        "Lay the biggest logs in the trench, then branches, then the green layer, compost, and the saved soil, building a mound anywhere from knee-high to head-high. Bigger holds water longer.",
+        "Make the sides steep, not gentle — around 45 degrees. Steep sides shed weeds, don't compact, and give you more planting surface.",
+        "Water it thoroughly as you build (soak the wood), plant into the soil layer, and expect the mound to slowly sink over the years as the wood becomes soil. That sinking is the bed working.",
+      ]},
+      { title: "Version 2 — raised bed with lumber walls", items: [
+        "Build a simple rectangular frame — untreated lumber boards screwed to corner posts. Knee to waist high. Untreated matters: old pressure-treated wood can leach chemicals into food soil.",
+        "Fill it with the exact same layers: logs on the bottom (this also means a deep raised bed costs almost nothing to fill — wood is free, purchased soil is not), then branches, greens, compost, topsoil.",
+        "The walls give you a tidy look, a place to sit while gardening, and a bed that fits neatly against a fence or in a small yard.",
+      ]},
+      { title: "Version 3 — metal retaining walls", items: [
+        "Same layers again, held by corrugated metal panels or a ready-made galvanized steel raised bed ring. Screw panels to wooden corner posts, or buy the pre-made rings.",
+        "Metal lasts decades, never rots, and the sun warms it — the soil inside wakes up earlier in spring. In very hot climates, that same warming can dry the edges faster; the wood core below is the insurance.",
+        "Salvaged roofing metal works — file or fold any sharp edges.",
+      ]},
+      { title: "Free, if you're lucky in materials", items: [
+        "After any storm, fallen wood is usually free for the hauling — your own land, neighbors clearing up, or arborists happy to dump wood chips and logs rather than pay landfill fees.",
+        "Autumn leaves, grass clippings, and kitchen scraps are the green layers — already yours.",
+        "The trench you dig supplies much of the soil that goes back on top.",
+        "Scrap lumber, old fence boards, or leftover roofing metal make the walls. The classic mound needs no walls at all — the most honored bed is built entirely from what the land already offered.",
+      ]},
+    ],
+  },
+  {
+    id: "foraging",
+    name: "Foraging — the oldest way of eating",
+    body: "Foraging is gathering wild food — the way every human ate for most of our history. Done right, it kills nothing, costs nothing, and roots you to your land like nothing else. Done wrong it can be genuinely dangerous, so the safety rules come first and they are absolute.",
+    lists: [
+      { title: "The safety rules (never bend these)", items: [
+        "Never eat anything unless you are 100% certain what it is. Not 'pretty sure.' Certain. No wild food is worth your life.",
+        "Learn from three sources before trusting an identification: a regional field guide, an experienced local forager, and your own repeated observation. An app alone is not enough.",
+        "Mushrooms are expert-level — some deadly ones look nearly identical to edible ones. Don't start there.",
+        "Avoid roadsides, sprayed lawns, industrial ground, and polluted water — plants absorb what's around them.",
+        "Know your local rules — many parks protect their plants.",
+      ]},
+      { title: "Beginner-safe wild foods (easy to identify)", items: [
+        "Dandelion — every part edible: young leaves in salad, flowers in fritters. Nearly impossible to misidentify.",
+        "Blackberries & raspberries — no dangerous look-alikes in that bramble form.",
+        "Wood sorrel — heart-shaped leaflets, bright lemon taste.",
+        "Nettles — sting raw, wonderful cooked (the sting cooks away). Gloves on; rich in minerals.",
+        "Acorns — leached of their bitterness, they become flour: the old staple food of many peoples.",
+      ]},
+      { title: "Forage by the Honorable Harvest", items: [
+        "Take only what you need, never the first plant you find, and never more than a third of what's there.",
+        "Leave roots when you can, so the plant lives to feed you again.",
+        "Use everything you take, and give something back — scatter seeds, clear litter, thank the place in your own way.",
+      ]},
+    ],
+  },
+  {
+    id: "local-farms",
+    name: "Local farms — eating from where you live",
+    body: "Food from nearby is fresher, travels less, and — most importantly — you can look the grower in the eye and ask how it was raised. That relationship is the oldest food-safety system in the world.",
+    lists: [
+      { title: "How to find local food", items: [
+        "Farmers markets — the front door of local eating. Go near closing time for rescue-price deals on what didn't sell.",
+        "A CSA (Community Supported Agriculture) — you pay a farm at the season's start and receive a weekly box of whatever's ripe. You share the farm's good years and hard ones, which is what a fair food relationship looks like.",
+        "Farm stands and u-pick farms — often the cheapest fruit anywhere, and picking it yourself is half the point.",
+        "Ask one question everywhere: 'How was this grown?' Farmers who care will happily tell you everything.",
+      ]},
+      { title: "Why it matters here", items: [
+        "Local food skips the long truck ride — picked ripe, not picked early to survive shipping.",
+        "Your money keeps a nearby farm alive, and living farms keep land alive.",
+        "Seasonal local eating naturally follows this app's seasonal tables — the land already knows the menu.",
+      ]},
+    ],
+  },
+  {
+    id: "wildlife-pollinators",
+    name: "Wildlife-friendly gardening & pollinator foods",
+    body: "One of every three bites you eat exists because a pollinator — a bee, butterfly, moth, bird, or bat — carried pollen between flowers. Feeding them is the most literal way to give life back: they return it as food, multiplied.",
+    lists: [
+      { title: "Make any space wildlife-friendly", items: [
+        "Plant native flowers — the species your local insects evolved beside. A packet of native wildflower seed is the highest-impact dollar in gardening.",
+        "Skip pesticides entirely. A garden with some chewed leaves is a garden that's feeding someone.",
+        "Leave the leaves in autumn — fallen leaves are winter shelter for butterflies, fireflies, and wild bees.",
+        "Offer water: a shallow dish with pebbles for landing spots.",
+        "Let a few herbs flower — a bolted basil or cilantro becomes a bee banquet.",
+      ]},
+      { title: "Pollinator favorites that also feed you", items: [
+        "Sunflowers — seeds for you, pollen for bees, seed heads for winter birds. The whole philosophy in one plant.",
+        "Lavender, rosemary, thyme, oregano, mint — kitchen herbs bees adore.",
+        "Berry bushes and fruit trees — blossoms feed pollinators in spring; fruit feeds you in summer.",
+        "Squash and pumpkins — their huge dawn flowers feed specialist squash bees.",
+      ]},
+    ],
+  },
+  {
+    id: "water-footprint",
+    name: "The water footprint — what a meal drinks",
+    body: "Every food 'drinks' water before it reaches you — rain and irrigation for plants; for meat, everything the animal ate across its life. Rough global averages, per pound of food. Like everything here: awareness, never guilt.",
+    lists: [
+      { title: "Rough water cost per pound", items: [
+        "Beef — about 1,800 gallons. The animal drank little of it; most grew years of feed.",
+        "Nuts — 1,000+ gallons for almonds and walnuts (thirsty trees, often in dry places). Plant foods aren't automatically light.",
+        "Pork ≈ 700 gallons · chicken ≈ 500 · eggs ≈ 400.",
+        "Rice ≈ 300–400 · dried beans and lentils ≈ 500–600 dry (but one dry pound makes many meals — per plate, they're light).",
+        "Bread ≈ 150 · milk ≈ 100 · potatoes ≈ 30 · most vegetables ≈ 20–40. The everyday staples are the gentlest drinkers.",
+      ]},
+      { title: "What to do with it", items: [
+        "The pattern is friendly: the sparing foods this app already favors — vegetables, potatoes, grains, legumes, dairy, eggs — are also the light drinkers. One compass, two readings.",
+        "Wasted food is wasted water: tossing a pound of beef pours out 1,800 invisible gallons. Waste-nothing is water conservation too.",
+      ]},
+    ],
+  },
+  {
+    id: "regenerative",
+    name: "Regenerative farming — food that heals the ground it grows in",
+    body: "Most farming slowly spends the soil, like drawing down a bank account. Regenerative farming is the opposite: growing food in ways that rebuild the soil, so the land gets healthier every year it feeds you. It's the rare answer that's good for the meal, the farm, the wildlife, and the whole planet at once.",
+    lists: [
+      { title: "How it works, plainly", items: [
+        "Keep soil covered and undisturbed — little or no plowing, and 'cover crops' (plants grown to feed the soil, not people) between harvests. Bare, broken soil bleeds away; covered soil builds.",
+        "Rotate everything — different crops in different years, and grazing animals moved often, the way wild herds once moved. Manure feeds the soil; the moving-on lets it recover.",
+        "Feed the underground livestock: one handful of healthy soil holds billions of microbes, fungi, and worms — they are the ones actually making the food. Regenerative farmers farm them first.",
+      ]},
+      { title: "Why it matters for carbon, and the globe", items: [
+        "Healthy soil pulls carbon out of the air. Plants breathe in carbon dioxide and pump much of that carbon down through their roots — living soil locks it away. Farmland covers more of Earth than nearly anything else humans do, so soil that stores carbon instead of leaking it is one of the largest climate levers that exists.",
+        "Spongy, root-filled soil drinks rain and holds it — surviving drought, preventing floods, instead of washing away as muddy runoff.",
+        "Fields with cover crops, hedgerows, and unpoisoned soil become habitat: birds, pollinators, and wild things return to land that feeds people.",
+        "For this philosophy, it's giving-back at farm scale: the land feeds us, and the farming feeds the land. Hugelkultur is the same idea, garden-sized.",
+      ]},
+      { title: "How to support it", items: [
+        "Ask farmers at the market: 'Do you use cover crops? Till? Rotate grazing?' The ones doing this work love being asked.",
+        "Look for 'Regenerative Organic Certified' or 'regeneratively grown' where you shop.",
+        "Grow even one pot of soil yourself — compost in, chemicals out. Regeneration starts at any size.",
+        "When you can afford the choice, food dollars are votes for the kind of farming the world gets more of.",
+      ]},
+    ],
+  },
+];
+
+// ---------------- hugelkultur diagrams (drawn in-app, no images needed) ----------------
+function HugelLegend() {
+  const swatches = [
+    { c: "#7A5230", t: "Logs" }, { c: "#9C7048", t: "Branches" },
+    { c: "#8A9A46", t: "Greens/scraps" }, { c: "#5E4B35", t: "Compost" },
+    { c: "#3E3226", t: "Topsoil" }, { c: "#C9B458", t: "Mulch" },
+  ];
+  return (
+    <div className="flex flex-wrap gap-2 mt-2" style={{ fontSize: "0.7rem", color: COLORS.inkSoft }}>
+      {swatches.map((s) => (
+        <span key={s.t} className="flex items-center gap-1">
+          <span style={{ width: 10, height: 10, background: s.c, borderRadius: 2, display: "inline-block" }} />
+          {s.t}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function HugelMoundDiagram() {
+  return (
+    <div>
+      <svg viewBox="0 0 400 200" style={{ width: "100%", maxWidth: 420, display: "block" }}>
+        <rect x="0" y="150" width="400" height="50" fill="#D8CBB0" />
+        <line x1="0" y1="150" x2="400" y2="150" stroke="#8B7B5E" strokeWidth="1.5" />
+        <path d="M 60 150 Q 70 170 110 172 L 290 172 Q 330 170 340 150 Z" fill="#C4B393" />
+        <path d="M 200 40 Q 320 55 340 150 L 60 150 Q 80 55 200 40 Z" fill="#C9B458" />
+        <path d="M 200 52 Q 310 66 330 150 L 70 150 Q 90 66 200 52 Z" fill="#3E3226" />
+        <path d="M 200 72 Q 296 84 318 150 L 82 150 Q 104 84 200 72 Z" fill="#5E4B35" />
+        <path d="M 200 90 Q 284 100 306 150 L 94 150 Q 116 100 200 90 Z" fill="#8A9A46" />
+        <path d="M 200 106 Q 272 114 294 150 L 106 150 Q 128 114 200 106 Z" fill="#9C7048" />
+        <ellipse cx="170" cy="146" rx="26" ry="13" fill="#7A5230" stroke="#5E3E22" />
+        <ellipse cx="222" cy="148" rx="30" ry="14" fill="#7A5230" stroke="#5E3E22" />
+        <ellipse cx="196" cy="160" rx="34" ry="11" fill="#6B4726" stroke="#5E3E22" />
+        <ellipse cx="170" cy="146" rx="9" ry="4.5" fill="#A87C4F" />
+        <ellipse cx="222" cy="148" rx="10" ry="5" fill="#A87C4F" />
+        <g stroke="#26331F" strokeWidth="1.5" fill="none">
+          <path d="M 180 40 q -4 -12 4 -20 M 180 40 q 8 -8 2 -18" />
+          <path d="M 230 46 q -4 -10 3 -17 M 230 46 q 7 -7 2 -15" />
+          <path d="M 130 70 q -3 -9 3 -15" />
+          <path d="M 275 78 q -3 -9 3 -15" />
+        </g>
+        <g fontSize="10" fill="#26331F" fontFamily="sans-serif">
+          <text x="8" y="45">mulch + plants</text><line x1="62" y1="42" x2="150" y2="48" stroke="#26331F" strokeWidth="0.6" />
+          <text x="8" y="66">topsoil 4–6 in</text><line x1="62" y1="63" x2="120" y2="70" stroke="#26331F" strokeWidth="0.6" />
+          <text x="8" y="88">compost</text><line x1="50" y1="85" x2="112" y2="92" stroke="#26331F" strokeWidth="0.6" />
+          <text x="330" y="100">greens & scraps</text><line x1="328" y1="97" x2="288" y2="108" stroke="#26331F" strokeWidth="0.6" />
+          <text x="330" y="122">branches</text><line x1="328" y1="119" x2="284" y2="128" stroke="#26331F" strokeWidth="0.6" />
+          <text x="330" y="146">big logs</text><line x1="328" y1="143" x2="256" y2="148" stroke="#26331F" strokeWidth="0.6" />
+          <text x="8" y="168">optional trench, ~1 ft deep</text>
+          <text x="300" y="188" fill="#5B6B52">steep ~45° sides</text>
+        </g>
+      </svg>
+      <p style={{ fontSize: "0.75rem", color: COLORS.inkSoft, marginTop: 4 }}>
+        Version 1 — the classic mound. Logs sit in a shallow trench; each layer wraps over
+        the one below; the whole hill is planted top to bottom.
+      </p>
+    </div>
+  );
+}
+
+function HugelBedDiagram({ wall }) {
+  const metal = wall === "metal";
+  const wallColor = metal ? "#9AA5AB" : "#B08A5A";
+  const wallEdge = metal ? "#6E7A80" : "#8A6844";
+  return (
+    <div>
+      <svg viewBox="0 0 400 200" style={{ width: "100%", maxWidth: 420, display: "block" }}>
+        <rect x="0" y="168" width="400" height="32" fill="#D8CBB0" />
+        <line x1="0" y1="168" x2="400" y2="168" stroke="#8B7B5E" strokeWidth="1.5" />
+        {/* fill layers inside the box */}
+        <rect x="78" y="128" width="244" height="40" fill="#7A5230" />
+        <ellipse cx="130" cy="148" rx="26" ry="13" fill="#8A5C33" stroke="#5E3E22" />
+        <ellipse cx="200" cy="150" rx="30" ry="14" fill="#8A5C33" stroke="#5E3E22" />
+        <ellipse cx="268" cy="148" rx="24" ry="12" fill="#8A5C33" stroke="#5E3E22" />
+        <rect x="78" y="106" width="244" height="22" fill="#9C7048" />
+        <rect x="78" y="88" width="244" height="18" fill="#8A9A46" />
+        <rect x="78" y="72" width="244" height="16" fill="#5E4B35" />
+        <rect x="78" y="52" width="244" height="20" fill="#3E3226" />
+        <rect x="78" y="46" width="244" height="6" fill="#C9B458" />
+        {/* walls */}
+        {metal ? (
+          <g>
+            <rect x="64" y="40" width="14" height="128" fill={wallColor} stroke={wallEdge} />
+            <rect x="322" y="40" width="14" height="128" fill={wallColor} stroke={wallEdge} />
+            <g stroke={wallEdge} strokeWidth="1">
+              <line x1="68" y1="42" x2="68" y2="166" /><line x1="72" y1="42" x2="72" y2="166" /><line x1="76" y1="42" x2="76" y2="166" />
+              <line x1="326" y1="42" x2="326" y2="166" /><line x1="330" y1="42" x2="330" y2="166" /><line x1="334" y1="42" x2="334" y2="166" />
+            </g>
+            <rect x="60" y="36" width="22" height="8" rx="2" fill="#7E8A90" />
+            <rect x="318" y="36" width="22" height="8" rx="2" fill="#7E8A90" />
+          </g>
+        ) : (
+          <g>
+            <g fill={wallColor} stroke={wallEdge}>
+              <rect x="64" y="40" width="14" height="32" /><rect x="64" y="74" width="14" height="32" />
+              <rect x="64" y="108" width="14" height="30" /><rect x="64" y="140" width="14" height="28" />
+              <rect x="322" y="40" width="14" height="32" /><rect x="322" y="74" width="14" height="32" />
+              <rect x="322" y="108" width="14" height="30" /><rect x="322" y="140" width="14" height="28" />
+            </g>
+            <rect x="58" y="34" width="26" height="8" rx="2" fill="#8A6844" />
+            <rect x="316" y="34" width="26" height="8" rx="2" fill="#8A6844" />
+            <circle cx="71" cy="56" r="1.5" fill="#5E3E22" /><circle cx="71" cy="90" r="1.5" fill="#5E3E22" />
+            <circle cx="329" cy="56" r="1.5" fill="#5E3E22" /><circle cx="329" cy="90" r="1.5" fill="#5E3E22" />
+          </g>
+        )}
+        {/* little plants on top */}
+        <g stroke="#26331F" strokeWidth="1.5" fill="none">
+          <path d="M 130 46 q -4 -12 4 -20 M 130 46 q 8 -8 2 -18" />
+          <path d="M 200 46 q -4 -12 4 -20 M 200 46 q 8 -8 2 -18" />
+          <path d="M 270 46 q -4 -12 4 -20 M 270 46 q 8 -8 2 -18" />
+        </g>
+        <g fontSize="10" fill="#26331F" fontFamily="sans-serif">
+          <text x="8" y="52">mulch</text><line x1="40" y1="49" x2="78" y2="49" stroke="#26331F" strokeWidth="0.6" />
+          <text x="8" y="66">topsoil</text><line x1="42" y1="63" x2="78" y2="62" stroke="#26331F" strokeWidth="0.6" />
+          <text x="8" y="82">compost</text><line x1="50" y1="79" x2="78" y2="80" stroke="#26331F" strokeWidth="0.6" />
+          <text x="344" y="98">greens</text><line x1="342" y1="95" x2="322" y2="97" stroke="#26331F" strokeWidth="0.6" />
+          <text x="344" y="118">branches</text><line x1="342" y1="115" x2="322" y2="117" stroke="#26331F" strokeWidth="0.6" />
+          <text x="344" y="150">logs fill</text><text x="344" y="161">the base</text>
+          <line x1="342" y1="150" x2="322" y2="150" stroke="#26331F" strokeWidth="0.6" />
+          <text x="8" y="188">{metal ? "corrugated metal panels on posts — decades of use, warms soil early" : "untreated lumber walls on corner posts — knee to waist high"}</text>
+        </g>
+      </svg>
+      <p style={{ fontSize: "0.75rem", color: COLORS.inkSoft, marginTop: 4 }}>
+        {metal
+          ? "Version 3 — metal retaining walls. Same layers; salvaged roofing metal works (fold sharp edges)."
+          : "Version 2 — raised bed with lumber walls. The wood core means a deep bed filled almost for free."}
+      </p>
+    </div>
+  );
+}
+
+// ---------------- blessings from everywhere: one appears each time the app opens ----------------
+const BLESSINGS = [
+  { text: "Blessed is the One who brings forth bread from the earth.", source: "Jewish tradition — the Hamotzi" },
+  { text: "For food, for friends, and for this day — we give thanks.", source: "Christian grace" },
+  { text: "In the name of God, and with gratitude for what sustains us.", source: "Muslim tradition — the spirit of Bismillah" },
+  { text: "May we eat with full attention, aware of all the work and all the life within this food.", source: "Buddhist contemplation" },
+  { text: "May the one who provides this food be happy — and may all beings be nourished.", source: "Hindu blessing — Annadata Sukhi Bhava" },
+  { text: "Itadakimasu — 'I humbly receive.' A thanks to every life and every hand this meal passed through.", source: "Japanese custom" },
+  { text: "We give thanks to the lives that feed us, and promise to take only what we need.", source: "In the spirit of the Honorable Harvest" },
+  { text: "May no one leave this table hungry — food is for sharing.", source: "The spirit of the Sikh langar" },
+  { text: "I am because we are. We eat because others labored.", source: "Ubuntu, southern Africa" },
+  { text: "To the soil, the rain, the farmers, and the cooks: none of this happened by itself. Thank you.", source: "A secular grace" },
+  { text: "Buen provecho — may this meal do you good.", source: "Spanish & Latin American custom" },
+  { text: "The meal is brief; the gratitude can last all day.", source: "The Living Table" },
+];
+
+// ---------------- traditions vault: categories for family & cultural knowledge ----------------
+const TRADITION_CATEGORIES = [
+  "Hunting", "Fishing", "Gathering & foraging", "Growing & planting",
+  "Cooking & processing", "Preserving", "Giving thanks & blessings",
+  "Feasts & celebrations", "Stories & teachings", "Other",
+];
+
+const DIETARY_LAWS = [
+  { id: "none", label: "No restriction" },
+  { id: "halal", label: "Halal" },
+  { id: "kosher", label: "Kosher" },
+  { id: "jain", label: "Jain-inspired (strict non-harm)" },
+  { id: "vegetarian", label: "Vegetarian" },
+  { id: "vegan", label: "Vegan" },
+  { id: "sparing-day", label: "Sparing Day (zero-kill only)" },
+];
+
+const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+function computeResults(profile) {
+  const w = parseFloat(profile.weight);
+  const h = parseFloat(profile.height);
+  const a = parseFloat(profile.age);
+  if (!w || !h || !a) return null;
+
+  const male = 10 * w + 6.25 * h - 5 * a + 5;
+  const female = 10 * w + 6.25 * h - 5 * a - 161;
+  let bmr;
+  if (profile.sex === "male") bmr = male;
+  else if (profile.sex === "female") bmr = female;
+  else bmr = (male + female) / 2;
+
+  const activity = ACTIVITY.find((x) => x.id === profile.activity) || ACTIVITY[0];
+  const goal = GOALS.find((x) => x.id === profile.goal) || GOALS[0];
+
+  const tdee = bmr * activity.mult;
+  const calories = Math.max(1200, Math.round(tdee + goal.cals));
+  const proteinG = Math.round(w * goal.protein);
+  const proteinCals = proteinG * 4;
+  const fatCals = calories * 0.28;
+  const fatG = Math.round(fatCals / 9);
+  const carbCals = calories - proteinCals - fatCals;
+  const carbG = Math.round(Math.max(carbCals, 0) / 4);
+
+  return { bmr: Math.round(bmr), tdee: Math.round(tdee), calories, proteinG, fatG, carbG };
+}
+
+export default function SparingTable() {
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [profile, setProfile] = useState({
+    weight: "", height: "", age: "", sex: "female", activity: "light", goal: "maintain",
+  });
+  const [journal, setJournal] = useState([]);
+  const [intention, setIntention] = useState("");
+  const [source, setSource] = useState("");
+  const [gratitude, setGratitude] = useState("");
+  const [mealFilter, setMealFilter] = useState("all");
+  const [breathPhase, setBreathPhase] = useState(0);
+  const [breathOn, setBreathOn] = useState(false);
+  const [openTradition, setOpenTradition] = useState(null);
+  const [recipeForm, setRecipeForm] = useState({ cuisine: "", law: "none", meal: "dinner", favorHarm: true });
+  const [recipeLoading, setRecipeLoading] = useState(false);
+  const [recipeError, setRecipeError] = useState("");
+  const [currentRecipe, setCurrentRecipe] = useState(null);
+  const [savedRecipes, setSavedRecipes] = useState([]);
+  const [proteinInfoOpen, setProteinInfoOpen] = useState(false);
+  const [sparingDay, setSparingDay] = useState(null);
+  const [previewSparingDay, setPreviewSparingDay] = useState(false);
+  const [dailyEntries, setDailyEntries] = useState([]);
+  const [newDaily, setNewDaily] = useState("");
+  const [hemisphere, setHemisphere] = useState("north");
+  const [seasonView, setSeasonView] = useState(null); // null = current season
+  const [openLifeCard, setOpenLifeCard] = useState(null);
+  const [tableCard, setTableCard] = useState(0);
+  const [readAloudOpen, setReadAloudOpen] = useState(false);
+  const [readAloudIndex, setReadAloudIndex] = useState(0);
+  const [shoppingList, setShoppingList] = useState([]);
+  const [proteinPicks, setProteinPicks] = useState([]);
+  const [proteinGroupOpen, setProteinGroupOpen] = useState("legume");
+  const [openRoot, setOpenRoot] = useState(null);
+  const [impactChecks, setImpactChecks] = useState([]);
+  const [seedLibrary, setSeedLibrary] = useState([]);
+  const [newSeed, setNewSeed] = useState({ name: "", notes: "" });
+  const [plantList, setPlantList] = useState([]);
+  const [newPlant, setNewPlant] = useState("");
+  const [compostCount, setCompostCount] = useState(0);
+  const [wasteRescued, setWasteRescued] = useState(0);
+  const [wasteTossed, setWasteTossed] = useState(0);
+  const [challengesDone, setChallengesDone] = useState([]);
+  const [openGuide, setOpenGuide] = useState(null);
+  const [hugelView, setHugelView] = useState("mound");
+  const [blessing, setBlessing] = useState(() => BLESSINGS[Math.floor(Math.random() * BLESSINGS.length)]);
+  const [traditions, setTraditions] = useState([]);
+  const [newTradition, setNewTradition] = useState({ title: "", people: "", category: TRADITION_CATEGORIES[0], body: "" });
+  const [tradMessage, setTradMessage] = useState("");
+  const [openTraditionEntry, setOpenTraditionEntry] = useState(null);
+  const importRef = useRef(null);
+  const todayKey = new Date().toISOString().slice(0, 10);
+  const timerRef = useRef(null);
+
+  // load saved data once
+  useEffect(() => {
+    (async () => {
+      try {
+        const p = await window.storage.get("sparing-table-profile");
+        if (p && p.value) setProfile(JSON.parse(p.value));
+      } catch (e) { /* nothing saved yet, that's fine */ }
+      try {
+        const j = await window.storage.get("sparing-table-journal");
+        if (j && j.value) setJournal(JSON.parse(j.value));
+      } catch (e) { /* nothing saved yet, that's fine */ }
+      try {
+        const r = await window.storage.get("sparing-table-recipes");
+        if (r && r.value) setSavedRecipes(JSON.parse(r.value));
+      } catch (e) { /* nothing saved yet, that's fine */ }
+      try {
+        const sd = await window.storage.get("sparing-table-sparing-day");
+        if (sd && sd.value !== undefined && sd.value !== null) setSparingDay(JSON.parse(sd.value));
+      } catch (e) { /* nothing saved yet, that's fine */ }
+      try {
+        const dj = await window.storage.get("sparing-table-daily-journal");
+        if (dj && dj.value) setDailyEntries(JSON.parse(dj.value));
+      } catch (e) { /* nothing saved yet, that's fine */ }
+      try {
+        const sh = await window.storage.get("sparing-table-shopping");
+        if (sh && sh.value) setShoppingList(JSON.parse(sh.value));
+      } catch (e) { /* nothing saved yet, that's fine */ }
+      try {
+        const hemi = await window.storage.get("sparing-table-hemisphere");
+        if (hemi && hemi.value) setHemisphere(JSON.parse(hemi.value));
+      } catch (e) { /* nothing saved yet, that's fine */ }
+      try {
+        const im = await window.storage.get("living-table-impact");
+        if (im && im.value) {
+          const saved = JSON.parse(im.value);
+          // a new day starts a fresh reflection — yesterday isn't a chain to maintain
+          if (saved.date === new Date().toISOString().slice(0, 10)) setImpactChecks(saved.checks || []);
+        }
+      } catch (e) { /* nothing saved yet, that's fine */ }
+      try {
+        const sl = await window.storage.get("living-table-seeds");
+        if (sl && sl.value) setSeedLibrary(JSON.parse(sl.value));
+      } catch (e) { /* nothing saved yet, that's fine */ }
+      try {
+        const pl = await window.storage.get("living-table-plants");
+        if (pl && pl.value) setPlantList(JSON.parse(pl.value));
+      } catch (e) { /* nothing saved yet, that's fine */ }
+      try {
+        const tr = await window.storage.get("living-table-trackers");
+        if (tr && tr.value) {
+          const t = JSON.parse(tr.value);
+          setCompostCount(t.compost || 0);
+          setWasteRescued(t.rescued || 0);
+          setWasteTossed(t.tossed || 0);
+        }
+      } catch (e) { /* nothing saved yet, that's fine */ }
+      try {
+        const ch = await window.storage.get("living-table-challenges");
+        if (ch && ch.value) setChallengesDone(JSON.parse(ch.value));
+      } catch (e) { /* nothing saved yet, that's fine */ }
+      try {
+        const td = await window.storage.get("living-table-traditions");
+        if (td && td.value) setTraditions(JSON.parse(td.value));
+      } catch (e) { /* nothing saved yet, that's fine */ }
+      setLoading(false);
+    })();
+  }, []);
+
+  // breathing cycle
+  useEffect(() => {
+    if (!breathOn) { clearTimeout(timerRef.current); return; }
+    const phase = BREATH_PHASES[breathPhase];
+    timerRef.current = setTimeout(() => {
+      setBreathPhase((p) => (p + 1) % BREATH_PHASES.length);
+    }, phase.seconds * 1000);
+    return () => clearTimeout(timerRef.current);
+  }, [breathOn, breathPhase]);
+
+  async function saveProfile(next) {
+    setProfile(next);
+    setSaving(true);
+    try {
+      await window.storage.set("sparing-table-profile", JSON.stringify(next));
+    } catch (e) { console.error("Could not save profile", e); }
+    setSaving(false);
+  }
+
+  async function addJournalEntry() {
+    if (!intention.trim() && !source.trim() && !gratitude.trim()) return;
+    const entry = {
+      id: Date.now(),
+      date: new Date().toLocaleDateString(),
+      intention: intention.trim(),
+      source: source.trim(),
+      gratitude: gratitude.trim(),
+    };
+    const next = [entry, ...journal].slice(0, 30);
+    setJournal(next);
+    setIntention("");
+    setSource("");
+    setGratitude("");
+    try {
+      await window.storage.set("sparing-table-journal", JSON.stringify(next));
+    } catch (e) { console.error("Could not save entry", e); }
+  }
+
+  async function clearJournal() {
+    setJournal([]);
+    try { await window.storage.set("sparing-table-journal", JSON.stringify([])); }
+    catch (e) { console.error("Could not clear entries", e); }
+  }
+
+  async function generateRecipe() {
+    setRecipeLoading(true);
+    setRecipeError("");
+    setCurrentRecipe(null);
+    const law = DIETARY_LAWS.find((l) => l.id === recipeForm.law);
+    const harmNote = recipeForm.favorHarm
+      ? "Favor ingredients that don't require killing a whole plant or animal where possible: fruit, dairy, eggs, honey, cut-and-regrow greens, and grains/legumes used in moderation. If meat is used, treat it as rare and precious — eaten with gratitude and nothing wasted."
+      : "No preference on this — just make it fit the cuisine and dietary law well.";
+    const system = `You are the recipe generator inside a food app called The Living Table. Generate ONE realistic, appetizing, home-cookable recipe. Requirements:
+- Cuisine/culture requested: ${recipeForm.cuisine || "any, your choice"}
+- Dietary law: ${law.label}. Follow its real rules (e.g. halal: no pork or alcohol; kosher: no pork or shellfish, never mix meat and dairy in the same dish; jain: avoid root vegetables like onion, garlic, potatoes, and avoid harming small life; vegetarian: no meat, poultry, or fish; vegan: no animal products at all; sparing-day: use ONLY foods that never require killing anything — fruit, milk, cheese, yogurt, eggs, honey, and leafy greens or perennial vegetables that are cut without killing the plant, like asparagus spears, rhubarb stalks, artichoke buds, chives, herbs, watercress, or arugula. No meat, fish, root vegetables, or grains/seeds for this one).
+- Meal type: ${recipeForm.meal}
+- ${harmNote}
+- Give a realistic nutrition estimate per serving.
+- Decide if the dish's protein is "complete" (contains all 9 essential amino acids in adequate amounts — true for meat, fish, eggs, dairy, soy, quinoa, or a plant combo like beans+rice/grain in the same dish; otherwise false) and explain why in one very simple sentence an 8th grader would understand.
+Respond with ONLY raw JSON, no markdown fences, no commentary, matching exactly this shape:
+{"title":"","culture":"","dietary_tags":[""],"servings":2,"ingredients":[{"name":"","amount":""}],"steps":[""],"nutrition":{"calories":0,"protein_g":0,"carbs_g":0,"fat_g":0,"protein_complete":true,"protein_note":""}}`;
+
+    try {
+      const response = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-6",
+          max_tokens: 1000,
+          system,
+          messages: [{ role: "user", content: "Generate the recipe now, as JSON only." }],
+        }),
+      });
+      const data = await response.json();
+      const text = (data.content || []).map((b) => b.text || "").join("");
+      const clean = text.replace(/```json|```/g, "").trim();
+      const recipe = JSON.parse(clean);
+      setCurrentRecipe(recipe);
+    } catch (e) {
+      console.error("Recipe generation failed", e);
+      setRecipeError("Couldn't generate a recipe just now. Please try again.");
+    }
+    setRecipeLoading(false);
+  }
+
+  async function saveCurrentRecipe() {
+    if (!currentRecipe) return;
+    const entry = { id: Date.now(), ...currentRecipe };
+    const next = [entry, ...savedRecipes].slice(0, 40);
+    setSavedRecipes(next);
+    try { await window.storage.set("sparing-table-recipes", JSON.stringify(next)); }
+    catch (e) { console.error("Could not save recipe", e); }
+  }
+
+  async function removeSavedRecipe(id) {
+    const next = savedRecipes.filter((r) => r.id !== id);
+    setSavedRecipes(next);
+    try { await window.storage.set("sparing-table-recipes", JSON.stringify(next)); }
+    catch (e) { console.error("Could not remove recipe", e); }
+  }
+
+  async function chooseSparingDay(dayIndex) {
+    const next = sparingDay === dayIndex ? null : dayIndex;
+    setSparingDay(next);
+    try { await window.storage.set("sparing-table-sparing-day", JSON.stringify(next)); }
+    catch (e) { console.error("Could not save sparing day", e); }
+  }
+
+  async function toggleImpact(id) {
+    const next = impactChecks.includes(id)
+      ? impactChecks.filter((x) => x !== id)
+      : [...impactChecks, id];
+    setImpactChecks(next);
+    try { await window.storage.set("living-table-impact", JSON.stringify({ date: todayKey, checks: next })); }
+    catch (e) { console.error("Could not save reflection", e); }
+  }
+
+  async function addSeed() {
+    if (!newSeed.name.trim()) return;
+    const next = [{ id: Date.now(), name: newSeed.name.trim(), notes: newSeed.notes.trim(), date: todayKey }, ...seedLibrary].slice(0, 100);
+    setSeedLibrary(next);
+    setNewSeed({ name: "", notes: "" });
+    try { await window.storage.set("living-table-seeds", JSON.stringify(next)); }
+    catch (e) { console.error("Could not save seed", e); }
+  }
+
+  async function removeSeed(id) {
+    const next = seedLibrary.filter((s) => s.id !== id);
+    setSeedLibrary(next);
+    try { await window.storage.set("living-table-seeds", JSON.stringify(next)); }
+    catch (e) { console.error("Could not remove seed", e); }
+  }
+
+  async function addPlant() {
+    if (!newPlant.trim()) return;
+    const next = [{ id: Date.now(), name: newPlant.trim(), done: false }, ...plantList].slice(0, 60);
+    setPlantList(next);
+    setNewPlant("");
+    try { await window.storage.set("living-table-plants", JSON.stringify(next)); }
+    catch (e) { console.error("Could not save planting note", e); }
+  }
+
+  async function togglePlant(id) {
+    const next = plantList.map((p) => (p.id === id ? { ...p, done: !p.done } : p));
+    setPlantList(next);
+    try { await window.storage.set("living-table-plants", JSON.stringify(next)); }
+    catch (e) { console.error("Could not update planting note", e); }
+  }
+
+  async function removePlant(id) {
+    const next = plantList.filter((p) => p.id !== id);
+    setPlantList(next);
+    try { await window.storage.set("living-table-plants", JSON.stringify(next)); }
+    catch (e) { console.error("Could not remove planting note", e); }
+  }
+
+  async function bumpTracker(kind) {
+    const t = {
+      compost: compostCount + (kind === "compost" ? 1 : 0),
+      rescued: wasteRescued + (kind === "rescued" ? 1 : 0),
+      tossed: wasteTossed + (kind === "tossed" ? 1 : 0),
+    };
+    setCompostCount(t.compost); setWasteRescued(t.rescued); setWasteTossed(t.tossed);
+    try { await window.storage.set("living-table-trackers", JSON.stringify(t)); }
+    catch (e) { console.error("Could not save tracker", e); }
+  }
+
+  async function toggleChallenge(id) {
+    const next = challengesDone.includes(id)
+      ? challengesDone.filter((x) => x !== id)
+      : [...challengesDone, id];
+    setChallengesDone(next);
+    try { await window.storage.set("living-table-challenges", JSON.stringify(next)); }
+    catch (e) { console.error("Could not save challenge", e); }
+  }
+
+  async function addTradition() {
+    if (!newTradition.title.trim() || !newTradition.body.trim()) {
+      setTradMessage("A tradition needs at least a name and its story.");
+      return;
+    }
+    const entry = {
+      id: Date.now() + "-" + Math.random().toString(36).slice(2, 8),
+      title: newTradition.title.trim(),
+      people: newTradition.people.trim(),
+      category: newTradition.category,
+      body: newTradition.body.trim(),
+      recorded: todayKey,
+    };
+    const next = [entry, ...traditions].slice(0, 300);
+    setTraditions(next);
+    setNewTradition({ title: "", people: "", category: TRADITION_CATEGORIES[0], body: "" });
+    setTradMessage("Recorded. It's saved on this device — export a copy to keep it safe and share it.");
+    try { await window.storage.set("living-table-traditions", JSON.stringify(next)); }
+    catch (e) { console.error("Could not save tradition", e); }
+  }
+
+  async function removeTradition(id) {
+    const next = traditions.filter((t) => t.id !== id);
+    setTraditions(next);
+    try { await window.storage.set("living-table-traditions", JSON.stringify(next)); }
+    catch (e) { console.error("Could not remove tradition", e); }
+  }
+
+  function exportTraditions() {
+    const payload = {
+      app: "The Living Table",
+      kind: "traditions",
+      exported: todayKey,
+      count: traditions.length,
+      traditions,
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "living-table-traditions.json";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    setTradMessage("Downloaded. Send that file to anyone — they can upload it here to receive every tradition inside.");
+  }
+
+  function importTraditions(e) {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        const parsed = JSON.parse(reader.result);
+        const incoming = Array.isArray(parsed) ? parsed : parsed.traditions || [];
+        const valid = incoming.filter((t) => t && t.title && t.body);
+        if (!valid.length) {
+          setTradMessage("That file didn't contain any readable traditions.");
+          return;
+        }
+        const existing = new Set(traditions.map((t) => t.id));
+        const fresh = valid.filter((t) => !existing.has(t.id))
+          .map((t) => ({
+            id: t.id || Date.now() + "-" + Math.random().toString(36).slice(2, 8),
+            title: String(t.title).slice(0, 120),
+            people: String(t.people || "").slice(0, 120),
+            category: TRADITION_CATEGORIES.includes(t.category) ? t.category : "Other",
+            body: String(t.body).slice(0, 4000),
+            recorded: t.recorded || todayKey,
+          }));
+        const next = [...fresh, ...traditions].slice(0, 300);
+        setTraditions(next);
+        setTradMessage(fresh.length
+          ? `Welcomed ${fresh.length} tradition${fresh.length === 1 ? "" : "s"} to the table.`
+          : "Everything in that file was already here.");
+        try { await window.storage.set("living-table-traditions", JSON.stringify(next)); }
+        catch (err) { console.error("Could not save imported traditions", err); }
+      } catch (err) {
+        console.error("Import failed", err);
+        setTradMessage("That file couldn't be read — it should be a traditions file exported from this app.");
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  }
+
+  async function addDailyEntry() {
+    if (!newDaily.trim()) return;
+    const entry = { id: Date.now(), date: new Date().toLocaleDateString(), text: newDaily.trim() };
+    const next = [entry, ...dailyEntries].slice(0, 100);
+    setDailyEntries(next);
+    setNewDaily("");
+    try { await window.storage.set("sparing-table-daily-journal", JSON.stringify(next)); }
+    catch (e) { console.error("Could not save journal entry", e); }
+  }
+
+  async function removeDailyEntry(id) {
+    const next = dailyEntries.filter((d) => d.id !== id);
+    setDailyEntries(next);
+    try { await window.storage.set("sparing-table-daily-journal", JSON.stringify(next)); }
+    catch (e) { console.error("Could not update journal", e); }
+  }
+
+  async function saveHemisphere(h) {
+    setHemisphere(h);
+    try { await window.storage.set("sparing-table-hemisphere", JSON.stringify(h)); }
+    catch (e) { console.error("Could not save hemisphere", e); }
+  }
+
+  async function addRecipeToShopping(recipe) {
+    const items = (recipe.ingredients || []).map((ing) => ({
+      id: Date.now() + Math.random(),
+      text: `${ing.amount} ${ing.name}`.trim(),
+      from: recipe.title,
+      done: false,
+    }));
+    const next = [...shoppingList, ...items].slice(0, 120);
+    setShoppingList(next);
+    try { await window.storage.set("sparing-table-shopping", JSON.stringify(next)); }
+    catch (e) { console.error("Could not save shopping list", e); }
+  }
+
+  async function toggleShoppingItem(id) {
+    const next = shoppingList.map((i) => i.id === id ? { ...i, done: !i.done } : i);
+    setShoppingList(next);
+    try { await window.storage.set("sparing-table-shopping", JSON.stringify(next)); }
+    catch (e) { console.error("Could not update shopping list", e); }
+  }
+
+  async function clearDoneShopping() {
+    const next = shoppingList.filter((i) => !i.done);
+    setShoppingList(next);
+    try { await window.storage.set("sparing-table-shopping", JSON.stringify(next)); }
+    catch (e) { console.error("Could not update shopping list", e); }
+  }
+
+  function nextTableCard() {
+    setTableCard((c) => (c + 1) % TABLE_CARDS.length);
+  }
+
+  function speakPrompt(text) {
+    try {
+      if (window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+        const u = new SpeechSynthesisUtterance(text);
+        u.rate = 0.9;
+        window.speechSynthesis.speak(u);
+      }
+    } catch (e) { /* speech not available on this device — large text still works */ }
+  }
+
+  const todayIndex = new Date().getDay();
+  const isSparingDayToday = sparingDay !== null && sparingDay === todayIndex;
+  const sparingModeActive = previewSparingDay || isSparingDayToday;
+
+  const results = computeResults(profile);
+  const phase = BREATH_PHASES[breathPhase];
+  const scale = phase.key === "in" ? 1.15 : phase.key === "out" ? 0.85 : 1;
+
+  const activeSeasonId = seasonView || currentSeasonId(hemisphere);
+  const activeSeason = SEASONS.find((s) => s.id === activeSeasonId);
+
+  const READ_ALOUD_PROMPTS = [
+    "Let's take one slow breath together before we begin.",
+    "Who or what gave its life, or its labor, for this meal?",
+    "We give thanks — to God, to the universe, or in our own way — to that which gave its life for us to continue.",
+    "What are we each grateful for today?",
+    "Let's eat slowly, and enjoy each other.",
+  ];
+
+  return (
+    <div style={{ background: COLORS.bg, minHeight: "100vh", color: COLORS.ink, fontFamily: "'Work Sans', sans-serif" }}>
+      <style>{FONT_IMPORT}{`
+        .display { font-family: 'Fraunces', serif; }
+        .ring { transition: transform 4s ease-in-out; }
+        @media (prefers-reduced-motion: reduce) { .ring { transition: none; } }
+      `}</style>
+
+      {/* header */}
+      <header style={{ borderBottom: `1px solid ${COLORS.line}` }} className="px-5 py-6 md:px-10">
+        <div className="max-w-3xl mx-auto flex items-center gap-2">
+          <Leaf size={22} color={COLORS.gold} />
+          <h1 className="display" style={{ fontSize: "1.6rem", fontWeight: 600 }}>The Living Table</h1>
+        </div>
+        <p className="max-w-3xl mx-auto mt-1" style={{ color: COLORS.inkSoft, fontSize: "0.95rem" }}>
+          Eat with gratitude. Waste less. Honor every source of life.
+        </p>
+        <p className="max-w-3xl mx-auto mt-2" style={{ color: COLORS.inkSoft, fontSize: "0.82rem", fontStyle: "italic" }}>
+          Life sustains life. Until humanity no longer depends on consuming other living
+          things, we choose to do so with gratitude, restraint, compassion, and as little
+          waste as possible. Every meal is a chance to honor the lives that sustain our
+          own — and, whenever we can, to give life back.
+        </p>
+      </header>
+
+      {loading ? (
+        <div className="flex items-center justify-center py-24">
+          <Loader2 className="animate-spin" size={28} color={COLORS.inkSoft} />
+        </div>
+      ) : (
+        <main className="max-w-3xl mx-auto px-5 md:px-10 py-8 space-y-12">
+
+          {/* a blessing greets each opening of the app */}
+          <div className="rounded-2xl p-5 text-center"
+            style={{ background: `${COLORS.gold}10`, border: `1px solid ${COLORS.gold}44` }}>
+            <p className="display" style={{ fontSize: "1.05rem", color: COLORS.ink, marginBottom: "0.3rem" }}>
+              "{blessing.text}"
+            </p>
+            <p style={{ fontSize: "0.75rem", color: COLORS.inkSoft }}>— {blessing.source}</p>
+            <button
+              onClick={() => setBlessing(BLESSINGS[Math.floor(Math.random() * BLESSINGS.length)])}
+              className="mt-2 px-3 py-1 rounded-full text-xs"
+              style={{ border: `1px solid ${COLORS.line}`, color: COLORS.inkSoft }}>
+              another blessing
+            </button>
+          </div>
+
+          {/* mindful pause — signature element */}
+          <section>
+            <h2 className="display" style={{ fontSize: "1.2rem", marginBottom: "0.75rem" }}>
+              Before you eat, pause
+            </h2>
+            <div
+              className="rounded-2xl flex flex-col items-center justify-center py-10 gap-4"
+              style={{ background: COLORS.surface, border: `1px solid ${COLORS.line}` }}
+            >
+              <div
+                className="ring rounded-full flex items-center justify-center"
+                style={{
+                  width: 120, height: 120,
+                  background: `radial-gradient(circle, ${COLORS.calm}33, ${COLORS.calm}11)`,
+                  border: `2px solid ${COLORS.calm}`,
+                  transform: `scale(${breathOn ? scale : 1})`,
+                }}
+              >
+                <Wind size={28} color={COLORS.calm} />
+              </div>
+              <p style={{ color: COLORS.inkSoft, fontSize: "0.95rem" }}>
+                {breathOn ? phase.label : "A slow breath, before the first bite."}
+              </p>
+              <button
+                onClick={() => setBreathOn((v) => !v)}
+                className="px-4 py-2 rounded-full text-sm font-medium"
+                style={{ background: breathOn ? COLORS.clay : COLORS.calm, color: "#fff" }}
+              >
+                {breathOn ? "Stop" : "Start breathing"}
+              </button>
+              <button
+                onClick={() => { setReadAloudIndex(0); setReadAloudOpen(true); }}
+                className="flex flex-col items-center px-5 py-2 rounded-full"
+                style={{ background: "transparent", border: `1px solid ${COLORS.calm}`, color: COLORS.calm }}
+              >
+                <span className="flex items-center gap-2 text-sm font-medium">
+                  <Volume2 size={14} /> At the living table
+                </span>
+                <span style={{ fontSize: "0.7rem", opacity: 0.85 }}>tap before we begin our meal</span>
+              </button>
+            </div>
+            <div className="rounded-xl p-4 mt-3"
+              style={{ background: `${COLORS.calm}10`, border: `1px solid ${COLORS.calm}40` }}>
+              <p style={{ fontSize: "0.85rem", fontWeight: 600, marginBottom: "0.35rem" }}>
+                Why breathe before eating? (Completely optional)
+              </p>
+              <p style={{ fontSize: "0.83rem", color: COLORS.ink, marginBottom: "0.5rem" }}>
+                Most meals begin mid-rush — walking from the stove, mid-conversation, phone in
+                hand. A few slow breaths do two quiet things. First, the body: slow breathing
+                tells your nervous system the danger is over, shifting it from "fight or flight"
+                into "rest and digest" — the calm state your stomach actually digests best in.
+                Second, the mind: the pause draws a small line between everything before the
+                meal and the meal itself. It says: <em>this is worth my attention.</em>
+              </p>
+              <p style={{ fontSize: "0.83rem", color: COLORS.ink, marginBottom: "0.5rem" }}>
+                The intention is simple — to arrive at your own table. Present enough to taste
+                the food, to notice when you're full, and, if you wish, to feel a moment of
+                gratitude for the lives on the plate. It's the smallest possible way of honoring
+                them: they gave everything; we can give thirty seconds.
+              </p>
+              <p style={{ fontSize: "0.83rem", color: COLORS.inkSoft }}>
+                And it is truly optional. Skip it on rushed days, skip it forever if it's not
+                for you — nothing here is a rule. The food nourishes you either way. This is an
+                open door, not a toll gate.
+              </p>
+            </div>
+          </section>
+
+          {/* feast days — permission for joy, stated early and plainly */}
+          <section>
+            <div className="rounded-2xl p-5"
+              style={{ background: `${COLORS.clay}0E`, border: `1px solid ${COLORS.clay}44` }}>
+              <div className="flex items-center gap-2 mb-2">
+                <Sparkles size={18} color={COLORS.clay} />
+                <h2 className="display" style={{ fontSize: "1.15rem" }}>Feast days — allow yourself joy</h2>
+              </div>
+              <p style={{ fontSize: "0.88rem", color: COLORS.ink, marginBottom: "0.6rem" }}>
+                Before anything else in this guide, hear this: <strong>allow yourself to enjoy
+                life from time to time, free of worry.</strong> Every tradition that fasts also
+                feasts — the first strawberry of summer eaten slowly, a harvest table groaning
+                with abundance, a birthday cake with no thoughts attached to it at all.
+                Celebration is not a break from gratitude. It is gratitude, at full volume.
+              </p>
+              <p style={{ fontSize: "0.88rem", color: COLORS.ink, marginBottom: "0.6rem" }}>
+                And allow yourself to be <em>you</em> — not perfect. Nobody needs to live this
+                whole guide 24 hours a day, 7 days a week. One intentional day is a great
+                start. One intentional meal is a great start. If you make mistakes or forget
+                for a while, it's okay. Truly. The table is simply here whenever you return
+                to it.
+              </p>
+              <p style={{ fontSize: "0.82rem", color: COLORS.inkSoft }}>
+                This is just a guide, and the path through it is yours to choose. If you feel
+                anxious about this undertaking, that's good — it means you understand the
+                weight of what is being honored. Take as long as you need to reflect on your
+                feelings. The table will be here.
+              </p>
+            </div>
+          </section>
+
+          {readAloudOpen && (
+            <div className="fixed inset-0 z-50 flex flex-col items-center justify-center p-8"
+              style={{ background: COLORS.bg }}>
+              <button onClick={() => { setReadAloudOpen(false); try { window.speechSynthesis && window.speechSynthesis.cancel(); } catch (e) {} }}
+                className="absolute top-5 right-5" aria-label="Close table mode">
+                <X size={28} color={COLORS.inkSoft} />
+              </button>
+              <p className="display text-center" style={{ fontSize: "2rem", lineHeight: 1.4, maxWidth: "36rem", color: COLORS.ink }}>
+                {READ_ALOUD_PROMPTS[readAloudIndex]}
+              </p>
+              <div className="flex items-center gap-3 mt-10">
+                <button onClick={() => speakPrompt(READ_ALOUD_PROMPTS[readAloudIndex])}
+                  className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium"
+                  style={{ background: COLORS.calm, color: "#fff" }}>
+                  <Volume2 size={14} /> Speak it
+                </button>
+                {readAloudIndex < READ_ALOUD_PROMPTS.length - 1 ? (
+                  <button onClick={() => setReadAloudIndex((i) => i + 1)}
+                    className="px-4 py-2 rounded-full text-sm font-medium"
+                    style={{ background: COLORS.gold, color: "#fff" }}>
+                    Next
+                  </button>
+                ) : (
+                  <button onClick={() => { setReadAloudOpen(false); try { window.speechSynthesis && window.speechSynthesis.cancel(); } catch (e) {} }}
+                    className="px-4 py-2 rounded-full text-sm font-medium"
+                    style={{ background: COLORS.gold, color: "#fff" }}>
+                    Enjoy the meal
+                  </button>
+                )}
+              </div>
+              <p style={{ color: COLORS.inkSoft, fontSize: "0.8rem", marginTop: "1.5rem" }}>
+                {readAloudIndex + 1} of {READ_ALOUD_PROMPTS.length} — large text, made for the whole table
+              </p>
+            </div>
+          )}
+
+          {/* educational: presence and gratitude across traditions */}
+          <Fold title={'Wisdom on presence and gratitude'}>
+            <p style={{ color: COLORS.inkSoft, fontSize: "0.9rem", marginBottom: "0.75rem" }}>
+              Many different traditions, from around the world, have their own way of pausing
+              to notice life and food. None is placed above another here — pick what speaks to
+              you, mix pieces, or use none of it. The point is the pause itself.
+            </p>
+            <div className="space-y-2">
+              {TRADITIONS.map((t) => {
+                const open = openTradition === t.id;
+                return (
+                  <div key={t.id} className="rounded-xl overflow-hidden"
+                    style={{ background: COLORS.surface, border: `1px solid ${COLORS.line}` }}>
+                    <button
+                      onClick={() => setOpenTradition(open ? null : t.id)}
+                      className="w-full flex items-center justify-between px-4 py-3 text-left"
+                    >
+                      <span style={{ fontWeight: 600, fontSize: "0.9rem" }}>{t.name}</span>
+                      <ChevronDown size={16} color={COLORS.inkSoft}
+                        style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform 0.2s" }} />
+                    </button>
+                    {open && (
+                      <div className="px-4 pb-4 space-y-2" style={{ fontSize: "0.85rem" }}>
+                        <p style={{ color: COLORS.ink }}>{t.idea}</p>
+                        <p style={{ color: COLORS.inkSoft }}>
+                          <strong style={{ color: COLORS.ink }}>Try this: </strong>{t.practice}
+                        </p>
+                        <p style={{ color: COLORS.calm, fontSize: "0.75rem" }}>When: {t.when}</p>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </Fold>
+
+          {/* who gave this life — honest sourcing library */}
+          <Fold title={'Who gave this life'} icon={Heart} color={COLORS.clay}>
+            <p style={{ color: COLORS.inkSoft, fontSize: "0.9rem", marginBottom: "0.75rem" }}>
+              Short, honest notes on where each food really comes from — so when the journal
+              asks who gave life for your meal, you have something true to draw on.
+            </p>
+            <div className="space-y-2">
+              {LIFE_LIBRARY.map((item) => {
+                const open = openLifeCard === item.id;
+                return (
+                  <div key={item.id} className="rounded-xl overflow-hidden"
+                    style={{ background: COLORS.surface, border: `1px solid ${COLORS.line}` }}>
+                    <button onClick={() => setOpenLifeCard(open ? null : item.id)}
+                      className="w-full flex items-center justify-between px-4 py-3 text-left">
+                      <span style={{ fontWeight: 600, fontSize: "0.9rem" }}>{item.name}</span>
+                      <ChevronDown size={16} color={COLORS.inkSoft}
+                        style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform 0.2s" }} />
+                    </button>
+                    {open && (
+                      <div className="px-4 pb-4">
+                        <p style={{ fontSize: "0.85rem", color: COLORS.ink }}>{item.body}</p>
+                        {item.lists && item.lists.map((list) => (
+                          <div key={list.title} className="mt-3">
+                            <p style={{ fontSize: "0.8rem", fontWeight: 600, color: COLORS.clay, marginBottom: "0.25rem" }}>
+                              {list.title}
+                            </p>
+                            <ul className="space-y-1" style={{ fontSize: "0.82rem", color: COLORS.ink }}>
+                              {list.items.map((line, i) => (
+                                <li key={i} className="flex gap-2">
+                                  <span style={{ color: COLORS.inkSoft }}>•</span>
+                                  <span>{line}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </Fold>
+
+          {/* goals calculator */}
+          <Fold title={'Your goals'}>
+            <p style={{ color: COLORS.inkSoft, fontSize: "0.9rem", marginBottom: "0.75rem" }}>
+              This gives a starting point, not a strict rule. <strong>BMR</strong> means the
+              energy your body burns just resting. <strong>Calories</strong> are the total
+              energy your food gives you. We use both to guess how much protein, carbs, and
+              fat might work for you.
+            </p>
+            <div
+              className="rounded-2xl p-5 grid grid-cols-2 gap-4"
+              style={{ background: COLORS.surface, border: `1px solid ${COLORS.line}` }}
+            >
+              <Field label="Weight (kg)">
+                <input type="number" value={profile.weight}
+                  onChange={(e) => saveProfile({ ...profile, weight: e.target.value })}
+                  className="w-full rounded-lg px-3 py-2 text-sm" style={inputStyle} />
+              </Field>
+              <Field label="Height (cm)">
+                <input type="number" value={profile.height}
+                  onChange={(e) => saveProfile({ ...profile, height: e.target.value })}
+                  className="w-full rounded-lg px-3 py-2 text-sm" style={inputStyle} />
+              </Field>
+              <Field label="Age">
+                <input type="number" value={profile.age}
+                  onChange={(e) => saveProfile({ ...profile, age: e.target.value })}
+                  className="w-full rounded-lg px-3 py-2 text-sm" style={inputStyle} />
+              </Field>
+              <Field label="Sex (for the formula)">
+                <select value={profile.sex}
+                  onChange={(e) => saveProfile({ ...profile, sex: e.target.value })}
+                  className="w-full rounded-lg px-3 py-2 text-sm" style={inputStyle}>
+                  <option value="female">Female</option>
+                  <option value="male">Male</option>
+                  <option value="other">Prefer an average</option>
+                </select>
+              </Field>
+              <Field label="Movement" full>
+                <select value={profile.activity}
+                  onChange={(e) => saveProfile({ ...profile, activity: e.target.value })}
+                  className="w-full rounded-lg px-3 py-2 text-sm" style={inputStyle}>
+                  {ACTIVITY.map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}
+                </select>
+              </Field>
+              <Field label="Goal" full>
+                <select value={profile.goal}
+                  onChange={(e) => saveProfile({ ...profile, goal: e.target.value })}
+                  className="w-full rounded-lg px-3 py-2 text-sm" style={inputStyle}>
+                  {GOALS.map((g) => <option key={g.id} value={g.id}>{g.label}</option>)}
+                </select>
+              </Field>
+            </div>
+
+            {results ? (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
+                <Stat label="Calories" value={results.calories} color={COLORS.ink} />
+                <Stat label="Protein (g)" value={results.proteinG} color={COLORS.clay} />
+                <Stat label="Carbs (g)" value={results.carbG} color={COLORS.gold} />
+                <Stat label="Fat (g)" value={results.fatG} color={COLORS.calm} />
+              </div>
+            ) : (
+              <p style={{ color: COLORS.inkSoft, fontSize: "0.85rem", marginTop: "0.75rem" }}>
+                Fill in weight, height, and age above to see your numbers.
+              </p>
+            )}
+            <p style={{ color: COLORS.inkSoft, fontSize: "0.8rem", marginTop: "0.5rem" }}>
+              {saving ? "Saving…" : "Saved automatically as you type."}
+            </p>
+          </Fold>
+
+          {/* the weekly sparing day */}
+          <Fold title={'Your Sparing Day'} icon={Leaf} color={COLORS.gold}>
+            <p style={{ color: COLORS.inkSoft, fontSize: "0.9rem", marginBottom: "0.75rem" }}>
+              Pick one day a week to eat only from what never requires killing anything:
+              fruit, milk, cheese, yogurt, eggs, honey, and greens or perennial vegetables
+              cut without harming the plant. On that day, your menu and recipes below will
+              narrow to just those foods.
+            </p>
+
+            <div className="flex gap-2 flex-wrap mb-3">
+              {DAYS.map((d, i) => (
+                <FilterPill key={d} active={sparingDay === i} onClick={() => chooseSparingDay(i)}
+                  label={d.slice(0, 3)} />
+              ))}
+            </div>
+
+            {sparingDay !== null ? (
+              <div className="rounded-xl p-4" style={{ background: `${COLORS.gold}18`, border: `1px solid ${COLORS.gold}55` }}>
+                <p style={{ fontSize: "0.85rem" }}>
+                  {isSparingDayToday
+                    ? "Today is your Sparing Day. Your menu below is narrowed to zero-kill foods."
+                    : `Your Sparing Day is ${DAYS[sparingDay]}. Come back then, or preview it now.`}
+                </p>
+                <label className="flex items-center gap-2 text-sm mt-2" style={{ color: COLORS.inkSoft }}>
+                  <input type="checkbox" checked={previewSparingDay}
+                    onChange={(e) => setPreviewSparingDay(e.target.checked)} />
+                  Preview Sparing Day mode now, regardless of today's date
+                </label>
+                <button
+                  onClick={() => setRecipeForm({ ...recipeForm, law: "sparing-day" })}
+                  className="text-xs mt-2 underline" style={{ color: COLORS.clay }}>
+                  Set the recipe generator to Sparing Day too
+                </button>
+              </div>
+            ) : (
+              <p style={{ color: COLORS.inkSoft, fontSize: "0.85rem" }}>
+                No Sparing Day set yet — tap a day above to begin.
+              </p>
+            )}
+
+            <div className="rounded-xl p-4 mt-4" style={{ background: `${COLORS.gold}18`, border: `1px solid ${COLORS.gold}55` }}>
+              <div className="flex items-center gap-2 mb-1">
+                <Sprout size={18} color={COLORS.gold} />
+                <p style={{ fontSize: "0.85rem", fontWeight: 600 }}>Carbs, and giving life back</p>
+              </div>
+              <p style={{ fontSize: "0.85rem", color: COLORS.inkSoft }}>
+                Fruit and dairy carry some carbs on their own, but if you need more on this
+                day — bread, potatoes, rice — the practice is simple: for every carb you take
+                that cost something its life, plant a seed to give life back. A bean in a cup
+                of soil. Half a potato in water. A seed saved from the fruit you just ate.
+                No need to log it or do it every time — it's just a small, physical way of
+                putting life back into the world when you can.
+              </p>
+            </div>
+          </Fold>
+
+          {/* seasonal zero-kill guide */}
+          <Fold title={'In season now'} icon={CalendarDays} color={COLORS.gold}>
+            <p style={{ color: COLORS.inkSoft, fontSize: "0.9rem", marginBottom: "0.75rem" }}>
+              Zero-kill foods at their best right now. Eating in season means fresher food,
+              less waste, and working with nature's rhythm instead of against it. Exact
+              timing shifts by region — treat this as a friendly guide, not a rulebook.
+            </p>
+            <div className="flex gap-2 flex-wrap mb-3">
+              {SEASONS.map((s) => (
+                <FilterPill key={s.id} active={activeSeasonId === s.id}
+                  onClick={() => setSeasonView(s.id === currentSeasonId(hemisphere) ? null : s.id)}
+                  label={s.label + (s.id === currentSeasonId(hemisphere) ? " (now)" : "")} />
+              ))}
+            </div>
+            <div className="rounded-2xl p-4 space-y-4" style={{ background: COLORS.surface, border: `1px solid ${COLORS.line}` }}>
+              <div>
+                <h3 style={{ fontSize: "0.85rem", fontWeight: 600, color: COLORS.gold, marginBottom: "0.35rem" }}>
+                  Fruits — freely offered by the plant
+                </h3>
+                <ul className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-1" style={{ fontSize: "0.85rem" }}>
+                  {activeSeason.fruits.map((f) => <li key={f}>• {f}</li>)}
+                </ul>
+              </div>
+              <div>
+                <h3 style={{ fontSize: "0.85rem", fontWeight: 600, color: "#8A9A46", marginBottom: "0.35rem" }}>
+                  Vegetables & greens — picked without killing the plant
+                </h3>
+                <ul className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-1" style={{ fontSize: "0.85rem" }}>
+                  {activeSeason.veggies.map((f) => <li key={f}>• {f}</li>)}
+                </ul>
+              </div>
+              <div>
+                <h3 style={{ fontSize: "0.85rem", fontWeight: 600, color: COLORS.calm, marginBottom: "0.35rem" }}>
+                  From living animals
+                </h3>
+                <ul className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-1" style={{ fontSize: "0.85rem" }}>
+                  {activeSeason.animal.map((f) => <li key={f}>• {f}</li>)}
+                </ul>
+              </div>
+              <p style={{ fontSize: "0.75rem", color: COLORS.inkSoft, borderTop: `1px solid ${COLORS.line}`, paddingTop: "0.6rem" }}>
+                <strong style={{ color: COLORS.ink }}>* On fermented foods:</strong> yogurt,
+                kefir, and cultured foods are alive with trillions of tiny microbes — living
+                things that give us life daily. Just as no one can sweep every microbe from
+                their path while walking, no one should become fixated on this cost of simply
+                being alive. But once in a while, reflect on them, and show gratitude in your
+                own way when you can.
+              </p>
+            </div>
+            <label className="flex items-center gap-2 text-xs mt-2" style={{ color: COLORS.inkSoft }}>
+              <input type="checkbox" checked={hemisphere === "south"}
+                onChange={(e) => saveHemisphere(e.target.checked ? "south" : "north")} />
+              I'm in the Southern Hemisphere (flips the seasons)
+            </label>
+          </Fold>
+
+          {/* menu, grouped by the plan's own rules */}
+          <Fold title={"Today's plate"}>
+            <div className="flex items-center justify-between mb-2">
+            </div>
+            {sparingModeActive && (
+              <p style={{ color: COLORS.gold, fontSize: "0.8rem", marginBottom: "0.5rem", fontWeight: 600 }}>
+                Sparing Day mode — showing only zero-kill foods.
+              </p>
+            )}
+            <div className="flex gap-2 flex-wrap mb-4">
+              <FilterPill active={mealFilter === "all"} onClick={() => setMealFilter("all")} label="All" />
+              {MEALS.map((m) => (
+                <FilterPill key={m} active={mealFilter === m} onClick={() => setMealFilter(m)}
+                  label={m[0].toUpperCase() + m.slice(1)} />
+              ))}
+            </div>
+
+            <div className="space-y-5">
+              {FOOD_GROUPS.filter((g) => !sparingModeActive || g.id === "zero-kill").map((group) => {
+                const items = group.foods.filter((f) => mealFilter === "all" || f.meal === mealFilter);
+                if (items.length === 0) return null;
+                const Icon = group.icon;
+                return (
+                  <div key={group.id} className="rounded-2xl p-4"
+                    style={{ background: COLORS.surface, border: `1px solid ${COLORS.line}` }}>
+                    <div className="flex items-center gap-2 mb-1">
+                      <Icon size={18} color={group.color} />
+                      <h3 style={{ fontWeight: 600, fontSize: "0.95rem" }}>{group.label}</h3>
+                    </div>
+                    <p style={{ color: COLORS.inkSoft, fontSize: "0.8rem", marginBottom: "0.6rem" }}>
+                      {group.note}
+                    </p>
+                    <ul className="space-y-2">
+                      {items.map((f) => (
+                        <li key={f.name} className="flex items-center justify-between text-sm">
+                          <span>{f.name}</span>
+                          <span style={{ color: COLORS.inkSoft, fontSize: "0.75rem", whiteSpace: "nowrap" }}>
+                            {f.protein}g protein · {f.carbs}g carbs
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                );
+              })}
+            </div>
+
+            <p style={{ fontSize: "0.75rem", color: COLORS.inkSoft, marginTop: "0.75rem" }}>
+              * Fermented foods like yogurt and kefir are alive with trillions of microbes —
+              living things that give us life daily. Don't fixate on this cost of simply being
+              alive; but once in a while, reflect on them with gratitude, in your own way.
+            </p>
+
+            <div className="rounded-xl p-4 mt-4" style={{ background: `${COLORS.calm}12`, border: `1px solid ${COLORS.calm}44` }}>
+              <p style={{ fontSize: "0.85rem", fontWeight: 600, marginBottom: "0.35rem" }}>
+                A note to vegans and vegetarians
+              </p>
+              <p style={{ fontSize: "0.85rem", color: COLORS.inkSoft }}>
+                There is nothing wrong with declining meat out of compassion and love — that
+                choice is honored here, and nothing in this app is meant to pull you toward
+                a different point of view. If you've ever hugged a tree, or felt real
+                gratitude for plant life, you may already recognize what this whole app is
+                reaching for: the sanctity of all life, together, on one planet. You're
+                welcome at this table exactly as you are.
+              </p>
+            </div>
+          </Fold>
+
+          {/* complete protein calculator + companion guide */}
+          <Fold title={'Complete protein, built from plants'} icon={Hexagon} color={COLORS.gold}>
+            <p style={{ color: COLORS.inkSoft, fontSize: "0.9rem", marginBottom: "0.75rem" }}>
+              A <strong>complete protein</strong> means a food — or a pairing of foods — that
+              gives you all nine <strong>essential amino acids</strong>: the protein building
+              blocks your body can't make on its own. Only two are ever really in short supply
+              for plant eaters. <strong>Lysine</strong> lives in beans, lentils, peas, and
+              peanuts. <strong>Methionine</strong> lives in grains, nuts, and seeds. Put one
+              of each on your plate and the protein is complete. And here's the happy part:
+              done this way, complete protein is the <strong>cheapest protein there is</strong>{" "}
+              — dried lentils and beans beat every animal source on price, by a lot.
+            </p>
+
+            {/* the pick-what-you-have picker */}
+            <div className="rounded-2xl p-5" style={{ background: COLORS.surface, border: `1px solid ${COLORS.line}` }}>
+              <p style={{ fontSize: "0.9rem", fontWeight: 600, marginBottom: "0.5rem" }}>
+                Tell us what you have
+              </p>
+              <div className="flex flex-wrap gap-2 mb-3">
+                {Object.keys(PROTEIN_GROUP_LABELS).map((g) => (
+                  <FilterPill key={g} active={proteinGroupOpen === g}
+                    onClick={() => setProteinGroupOpen(g)}
+                    label={PROTEIN_GROUP_LABELS[g].split(" — ")[0]} />
+                ))}
+              </div>
+              <p style={{ fontSize: "0.78rem", color: COLORS.inkSoft, marginBottom: "0.5rem" }}>
+                {PROTEIN_GROUP_LABELS[proteinGroupOpen]}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {PROTEIN_FOODS.filter((f) => f.group === proteinGroupOpen).map((f) => {
+                  const on = proteinPicks.includes(f.id);
+                  return (
+                    <button key={f.id}
+                      onClick={() => setProteinPicks(on
+                        ? proteinPicks.filter((x) => x !== f.id)
+                        : [...proteinPicks, f.id])}
+                      className="rounded-full px-3 py-1.5 text-left"
+                      style={{
+                        fontSize: "0.8rem",
+                        background: on ? COLORS.ink : "#fff",
+                        color: on ? COLORS.surface : COLORS.ink,
+                        border: `1px solid ${on ? COLORS.ink : COLORS.line}`,
+                      }}>
+                      {f.name} <span style={{ opacity: 0.7 }}>· {f.protein}g</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* the verdict */}
+              {(() => {
+                const a = analyzeProtein(proteinPicks);
+                if (a.need === "empty") {
+                  return (
+                    <p className="mt-4" style={{ fontSize: "0.85rem", color: COLORS.inkSoft }}>
+                      Tap anything you've got in the cupboard and we'll tell you what — if
+                      anything — it needs to become a complete protein.
+                    </p>
+                  );
+                }
+                const good = a.complete;
+                return (
+                  <div className="mt-4 rounded-xl p-4"
+                    style={{
+                      background: good ? `${COLORS.gold}18` : `${COLORS.calm}14`,
+                      border: `1px solid ${good ? COLORS.gold : COLORS.calm}66`,
+                    }}>
+                    <p style={{ fontWeight: 600, fontSize: "0.9rem", marginBottom: "0.35rem" }}>
+                      {good ? "That's a complete protein." : "Almost — one piece missing."}
+                    </p>
+                    <div className="flex flex-wrap gap-4 mb-2" style={{ fontSize: "0.82rem", color: COLORS.inkSoft }}>
+                      <span><strong style={{ color: COLORS.ink }}>{a.totalProtein}g</strong> protein</span>
+                      <span>Lysine: <strong style={{ color: COLORS.ink }}>{a.lysineOk ? "covered" : "missing"}</strong></span>
+                      <span>Methionine: <strong style={{ color: COLORS.ink }}>{a.methionineOk ? "covered" : "missing"}</strong></span>
+                      {a.costPer10 > 0 && (
+                        <span>≈ <strong style={{ color: COLORS.ink }}>${a.costPer10.toFixed(2)}</strong> per 10g protein</span>
+                      )}
+                    </div>
+
+                    {!good && (
+                      <>
+                        <p style={{ fontSize: "0.85rem", marginBottom: "0.4rem" }}>
+                          {a.need === "methionine"
+                            ? "You have the lysine (from the legumes). You need methionine — add any grain, nut, or seed:"
+                            : "You have the methionine (from the grains, nuts, or seeds). You need lysine — add any legume:"}
+                        </p>
+                        <div className="flex flex-wrap gap-2 mb-3">
+                          {a.suggestions.map((s) => (
+                            <button key={s.id}
+                              onClick={() => setProteinPicks([...proteinPicks, s.id])}
+                              className="rounded-full px-3 py-1"
+                              style={{ fontSize: "0.78rem", background: "#fff", border: `1px solid ${COLORS.line}`, color: COLORS.ink }}>
+                              + {s.name}
+                            </button>
+                          ))}
+                        </div>
+                        <p style={{ fontSize: "0.8rem", color: COLORS.inkSoft, marginBottom: "0.4rem" }}>
+                          Or finish it in one move with a food that's already complete:
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          {a.shortcuts.map((s) => (
+                            <button key={s.id}
+                              onClick={() => setProteinPicks([...proteinPicks, s.id])}
+                              className="rounded-full px-3 py-1"
+                              style={{ fontSize: "0.78rem", background: "#fff", border: `1px solid ${COLORS.gold}`, color: COLORS.ink }}>
+                              + {s.name}
+                            </button>
+                          ))}
+                        </div>
+                      </>
+                    )}
+
+                    {good && (
+                      <p style={{ fontSize: "0.82rem", color: COLORS.ink }}>
+                        All nine essential amino acids are on the plate. Nothing had to die for
+                        most of this, and it likely cost less than a coffee.
+                      </p>
+                    )}
+
+                    {proteinPicks.length > 0 && (
+                      <button onClick={() => setProteinPicks([])}
+                        className="mt-3 flex items-center gap-1"
+                        style={{ fontSize: "0.78rem", color: COLORS.inkSoft }}>
+                        <RotateCcw size={13} /> Start over
+                      </button>
+                    )}
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* highlighted: the plants that are complete all by themselves */}
+            <div className="rounded-2xl p-5 mt-3"
+              style={{ background: `${COLORS.gold}14`, border: `1px solid ${COLORS.gold}66` }}>
+              <div className="flex items-center gap-2 mb-2">
+                <Sparkles size={16} color={COLORS.gold} />
+                <p style={{ fontWeight: 600, fontSize: "0.95rem" }}>Plants that are complete all on their own</p>
+              </div>
+              <p style={{ fontSize: "0.85rem", color: COLORS.ink, marginBottom: "0.6rem" }}>
+                A few plants need no partner at all — they carry all nine essential amino acids
+                by themselves. No pairing, no planning.
+              </p>
+              <ul className="space-y-2" style={{ fontSize: "0.85rem" }}>
+                <li><strong>Soy</strong> — the champion. Tofu, tempeh, edamame, soy milk, and miso all
+                  come from the soybean, and its protein quality scores level with egg and milk.
+                  It's also among the cheapest protein on any shelf.</li>
+                <li><strong>Quinoa</strong> — a seed we cook like a grain. Complete, quick, and gluten-free.
+                  Rinse it first; the natural coating tastes bitter.</li>
+                <li><strong>Buckwheat</strong> — not wheat at all, despite the name. Complete, and the base
+                  of soba noodles and kasha.</li>
+                <li><strong>Amaranth</strong> — an ancient Aztec grain-like seed. Complete, and unusually high in lysine.</li>
+                <li><strong>Hemp seeds</strong> — complete, plus healthy fats. Spoon them onto anything.</li>
+                <li><strong>Chia seeds</strong> — complete, though the protein per spoonful is small.</li>
+                <li><strong>Spirulina</strong> — a blue-green algae. Complete, and very protein-dense by weight.</li>
+                <li><strong>Nutritional yeast</strong> — complete, cheesy-tasting, usually fortified with B12.</li>
+                <li><strong>Pistachios</strong> — the one nut that's complete on its own.</li>
+                <li><strong>Potatoes</strong> — a surprise: not much protein by volume, but the protein
+                  they do have is complete and remarkably well used by the body.</li>
+              </ul>
+              <p className="mt-3" style={{ fontSize: "0.8rem", color: COLORS.inkSoft }}>
+                Every one of these is a seed, a bean, or a tuber — food a plant offers without
+                being killed for it, when we leave enough behind.
+              </p>
+            </div>
+
+            {/* companion guide — the pairings the world already figured out */}
+            <div className="rounded-2xl p-5 mt-3" style={{ background: COLORS.surface, border: `1px solid ${COLORS.line}` }}>
+              <p style={{ fontWeight: 600, fontSize: "0.95rem", marginBottom: "0.5rem" }}>
+                The companion guide
+              </p>
+              <p style={{ fontSize: "0.85rem", color: COLORS.inkSoft, marginBottom: "0.6rem" }}>
+                Long before anyone knew the word "amino acid," cooks everywhere had already
+                landed on the same pairing. That's not a coincidence — it's a species figuring
+                out what feeds it.
+              </p>
+              <div className="space-y-1.5">
+                {PROTEIN_TRADITIONS.map((t) => (
+                  <div key={t.pair} className="flex flex-wrap items-baseline gap-x-2"
+                    style={{ fontSize: "0.85rem" }}>
+                    <span style={{ fontWeight: 600 }}>{t.pair}</span>
+                    <span style={{ color: COLORS.inkSoft, fontSize: "0.8rem" }}>— {t.where}</span>
+                  </div>
+                ))}
+              </div>
+              <p className="mt-3" style={{ fontSize: "0.8rem", color: COLORS.inkSoft }}>
+                One old myth worth putting down: you do <strong>not</strong> need to eat the pair
+                in the same meal. Your body keeps a pool of amino acids on hand. Beans at lunch
+                and rice at dinner works perfectly well. Eat across the day, not by the clock.
+              </p>
+            </div>
+          </Fold>
+
+          {/* recipes on demand */}
+          <Fold title={'Recipes, made for you'} icon={ChefHat} color={COLORS.clay}>
+            <p style={{ color: COLORS.inkSoft, fontSize: "0.9rem", marginBottom: "0.75rem" }}>
+              Ask for a dish from any culture, under any dietary law. We'll build it with
+              moderation and mindfulness in mind, and show you exactly what's in it.
+            </p>
+
+            <div className="rounded-2xl p-5 grid grid-cols-2 gap-4"
+              style={{ background: COLORS.surface, border: `1px solid ${COLORS.line}` }}>
+              <Field label="Cuisine or culture" full>
+                <input value={recipeForm.cuisine}
+                  onChange={(e) => setRecipeForm({ ...recipeForm, cuisine: e.target.value })}
+                  placeholder="e.g. Moroccan, Japanese, Mexican, my grandmother's"
+                  className="w-full rounded-lg px-3 py-2 text-sm" style={inputStyle} />
+              </Field>
+              <Field label="Dietary law">
+                <select value={recipeForm.law}
+                  onChange={(e) => setRecipeForm({ ...recipeForm, law: e.target.value })}
+                  className="w-full rounded-lg px-3 py-2 text-sm" style={inputStyle}>
+                  {DIETARY_LAWS.map((l) => <option key={l.id} value={l.id}>{l.label}</option>)}
+                </select>
+              </Field>
+              <Field label="Meal">
+                <select value={recipeForm.meal}
+                  onChange={(e) => setRecipeForm({ ...recipeForm, meal: e.target.value })}
+                  className="w-full rounded-lg px-3 py-2 text-sm" style={inputStyle}>
+                  {MEALS.map((m) => <option key={m} value={m}>{m[0].toUpperCase() + m.slice(1)}</option>)}
+                </select>
+              </Field>
+              <Field label="Least-harm ingredients" full>
+                <label className="flex items-center gap-2 text-sm" style={{ color: COLORS.inkSoft }}>
+                  <input type="checkbox" checked={recipeForm.favorHarm}
+                    onChange={(e) => setRecipeForm({ ...recipeForm, favorHarm: e.target.checked })} />
+                  Favor foods from the least-harm groups above, where it fits
+                </label>
+              </Field>
+            </div>
+
+            <button onClick={generateRecipe} disabled={recipeLoading}
+              className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium mt-3"
+              style={{ background: COLORS.clay, color: "#fff", opacity: recipeLoading ? 0.7 : 1 }}>
+              {recipeLoading ? <Loader2 size={14} className="animate-spin" /> : <ChefHat size={14} />}
+              {recipeLoading ? "Cooking this up…" : "Generate a recipe"}
+            </button>
+
+            {recipeError && (
+              <p style={{ color: COLORS.clay, fontSize: "0.85rem", marginTop: "0.5rem" }}>{recipeError}</p>
+            )}
+
+            {currentRecipe && (
+              <RecipeCard recipe={currentRecipe} onSave={saveCurrentRecipe}
+                onAddToShopping={() => addRecipeToShopping(currentRecipe)}
+                proteinInfoOpen={proteinInfoOpen} setProteinInfoOpen={setProteinInfoOpen} />
+            )}
+
+            {savedRecipes.length > 0 && (
+              <div className="mt-6">
+                <h3 style={{ fontSize: "0.95rem", fontWeight: 600, marginBottom: "0.5rem" }}>Saved recipes</h3>
+                <div className="space-y-2">
+                  {savedRecipes.map((r) => (
+                    <div key={r.id} className="rounded-xl p-3 flex items-center justify-between"
+                      style={{ background: COLORS.surface, border: `1px solid ${COLORS.line}` }}>
+                      <div>
+                        <div style={{ fontWeight: 600, fontSize: "0.85rem" }}>{r.title}</div>
+                        <div style={{ fontSize: "0.75rem", color: COLORS.inkSoft }}>
+                          {r.culture} · {(r.dietary_tags || []).join(", ")}
+                        </div>
+                      </div>
+                      <button onClick={() => removeSavedRecipe(r.id)} aria-label="Remove recipe">
+                        <Trash2 size={16} color={COLORS.inkSoft} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </Fold>
+
+          {/* shopping list */}
+          {shoppingList.length > 0 && (
+            <section>
+              <div className="flex items-center gap-2 mb-2">
+                <ShoppingBasket size={18} color={COLORS.clay} />
+                <h2 className="display" style={{ fontSize: "1.2rem" }}>Shopping list</h2>
+              </div>
+              <p style={{ color: COLORS.inkSoft, fontSize: "0.9rem", marginBottom: "0.75rem" }}>
+                Built from your recipes. Buy only what you'll use — the list is a plan,
+                not a quota.
+              </p>
+              <div className="rounded-2xl p-4" style={{ background: COLORS.surface, border: `1px solid ${COLORS.line}` }}>
+                <ul className="space-y-2">
+                  {shoppingList.map((item) => (
+                    <li key={item.id} className="flex items-start gap-2 text-sm">
+                      <input type="checkbox" checked={item.done}
+                        onChange={() => toggleShoppingItem(item.id)} className="mt-0.5" />
+                      <span style={{ textDecoration: item.done ? "line-through" : "none", color: item.done ? COLORS.inkSoft : COLORS.ink }}>
+                        {item.text}
+                        <span style={{ color: COLORS.inkSoft, fontSize: "0.7rem" }}> — {item.from}</span>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                {shoppingList.some((i) => i.done) && (
+                  <button onClick={clearDoneShopping}
+                    className="flex items-center gap-1 text-xs mt-3" style={{ color: COLORS.inkSoft }}>
+                    <RotateCcw size={12} /> Clear checked items
+                  </button>
+                )}
+              </div>
+            </section>
+          )}
+
+          {/* daily journal — ideas, inspirations, aspirations */}
+          <Fold title={'Daily Journal'} icon={BookOpen} color={COLORS.gold}>
+            <p style={{ color: COLORS.inkSoft, fontSize: "0.9rem", marginBottom: "0.75rem" }}>
+              Ideas, inspirations, aspirations — anything at all. No rules, and no obligation
+              to fill it in every day. Just a place to jot things down when something's here.
+            </p>
+            <div className="rounded-2xl p-4" style={{ background: COLORS.surface, border: `1px solid ${COLORS.line}` }}>
+              <textarea value={newDaily} onChange={(e) => setNewDaily(e.target.value)}
+                placeholder="Write whatever's on your mind…"
+                rows={3}
+                className="w-full rounded-lg px-3 py-2 text-sm" style={{ ...inputStyle, resize: "vertical" }} />
+              <button onClick={addDailyEntry}
+                className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium mt-2"
+                style={{ background: COLORS.gold, color: "#fff" }}>
+                <Save size={14} /> Save entry
+              </button>
+            </div>
+
+            {dailyEntries.length > 0 && (
+              <div className="mt-4 space-y-2">
+                {dailyEntries.map((d) => (
+                  <div key={d.id} className="rounded-xl p-3 text-sm flex items-start justify-between gap-2"
+                    style={{ background: COLORS.surface, border: `1px solid ${COLORS.line}` }}>
+                    <div>
+                      <div style={{ color: COLORS.inkSoft, fontSize: "0.75rem" }}>{d.date}</div>
+                      <div className="mt-1">{d.text}</div>
+                    </div>
+                    <button onClick={() => removeDailyEntry(d.id)} aria-label="Remove entry">
+                      <Trash2 size={14} color={COLORS.inkSoft} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Fold>
+
+          {/* table talk cards */}
+          <Fold title={'Table talk'} icon={MessagesSquare} color={COLORS.calm}>
+            <p style={{ color: COLORS.inkSoft, fontSize: "0.9rem", marginBottom: "0.75rem" }}>
+              A question to pass around the table. One per meal is plenty.
+            </p>
+            <div className="rounded-2xl p-6 text-center"
+              style={{ background: `${COLORS.calm}12`, border: `1px solid ${COLORS.calm}44` }}>
+              <p className="display" style={{ fontSize: "1.15rem", lineHeight: 1.5 }}>
+                “{TABLE_CARDS[tableCard]}”
+              </p>
+              <button onClick={nextTableCard}
+                className="px-4 py-2 rounded-full text-sm font-medium mt-4"
+                style={{ background: COLORS.calm, color: "#fff" }}>
+                Another question
+              </button>
+            </div>
+          </Fold>
+
+          {/* mindfulness journal */}
+          <Fold title={'Nourishment for body and soul'} icon={BookOpen} color={COLORS.calm}>
+            <p style={{ color: COLORS.inkSoft, fontSize: "0.9rem", marginBottom: "0.5rem" }}>
+              Before you eat, name your intention. While preparing, or after, reflect on who or
+              what gave its life so yours could continue — a plant, an animal, a farmer's work,
+              a season of weather. After, name what you're grateful for.
+            </p>
+            <p style={{ color: COLORS.inkSoft, fontSize: "0.85rem", marginBottom: "0.75rem", fontStyle: "italic" }}>
+              If you're eating with others, say these things out loud together. Give thanks —
+              to God, to the universe, or plainly to what you're about to eat — for the gift
+              of what's on the table.
+            </p>
+            <div className="rounded-2xl p-5 space-y-3"
+              style={{ background: COLORS.surface, border: `1px solid ${COLORS.line}` }}>
+              <Field label="My intention for this meal">
+                <input value={intention} onChange={(e) => setIntention(e.target.value)}
+                  placeholder="e.g. Eat slowly, without my phone."
+                  className="w-full rounded-lg px-3 py-2 text-sm" style={inputStyle} />
+              </Field>
+              <Field label="Who or what gave life for this meal">
+                <input value={source} onChange={(e) => setSource(e.target.value)}
+                  placeholder="e.g. The hen who laid these eggs. The farmer who grew this wheat."
+                  className="w-full rounded-lg px-3 py-2 text-sm" style={inputStyle} />
+              </Field>
+              <Field label="What I'm grateful for">
+                <input value={gratitude} onChange={(e) => setGratitude(e.target.value)}
+                  placeholder="e.g. The hands that grew this food."
+                  className="w-full rounded-lg px-3 py-2 text-sm" style={inputStyle} />
+              </Field>
+              <button onClick={addJournalEntry}
+                className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium"
+                style={{ background: COLORS.gold, color: "#fff" }}>
+                <Save size={14} /> Save this reflection
+              </button>
+            </div>
+
+            {journal.length > 0 && (
+              <div className="mt-4 space-y-2">
+                {journal.map((entry) => (
+                  <div key={entry.id} className="rounded-xl p-3 text-sm"
+                    style={{ background: COLORS.surface, border: `1px solid ${COLORS.line}` }}>
+                    <div style={{ color: COLORS.inkSoft, fontSize: "0.75rem" }}>{entry.date}</div>
+                    {entry.intention && <div className="mt-1"><Sparkles size={12} className="inline mr-1" color={COLORS.calm} />{entry.intention}</div>}
+                    {entry.source && <div className="mt-1"><Leaf size={12} className="inline mr-1" color={COLORS.gold} />{entry.source}</div>}
+                    {entry.gratitude && <div className="mt-1"><Heart size={12} className="inline mr-1" color={COLORS.clay} />{entry.gratitude}</div>}
+                  </div>
+                ))}
+                <button onClick={clearJournal}
+                  className="flex items-center gap-1 text-xs mt-2" style={{ color: COLORS.inkSoft }}>
+                  <RotateCcw size={12} /> Clear all reflections
+                </button>
+              </div>
+            )}
+          </Fold>
+
+          {/* the philosophy — where this comes from */}
+          <Fold title={'The philosophy — and where it comes from'} icon={Sprout} color={COLORS.gold}>
+            <p style={{ color: COLORS.inkSoft, fontSize: "0.9rem", marginBottom: "0.75rem" }}>
+              The Living Table stands on old ground. Its heart — every meal has a cost in
+              life; since we cannot yet live without consuming life, we choose foods that
+              minimize harm, waste nothing, stay grateful, and give life back when we can —
+              is our own way of putting it. But it braids together threads that people
+              everywhere have carried for thousands of years. None of this requires any
+              particular faith, or any faith at all. Only the sense that food deserves respect,
+              because it keeps us alive.
+            </p>
+            <div className="space-y-2">
+              {PHILOSOPHY_ROOTS.map((root, i) => {
+                const open = openRoot === i;
+                return (
+                  <div key={root.name} className="rounded-xl overflow-hidden"
+                    style={{ background: COLORS.surface, border: `1px solid ${COLORS.line}` }}>
+                    <button onClick={() => setOpenRoot(open ? null : i)}
+                      className="w-full flex items-center justify-between px-4 py-3 text-left">
+                      <span style={{ fontSize: "0.9rem", fontWeight: 600 }}>{root.name}</span>
+                      <span className="flex items-center gap-2">
+                        <span style={{ fontSize: "0.72rem", color: COLORS.inkSoft }}>{root.origin}</span>
+                        <ChevronDown size={16} color={COLORS.inkSoft}
+                          style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform 0.2s" }} />
+                      </span>
+                    </button>
+                    {open && (
+                      <p className="px-4 pb-4" style={{ fontSize: "0.85rem", color: COLORS.ink }}>{root.idea}</p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </Fold>
+
+          {/* today's reflection — no streaks, no chains, just today */}
+          <Fold title={"Today's reflection"} icon={Heart} color={COLORS.clay}>
+            <p style={{ color: COLORS.inkSoft, fontSize: "0.9rem", marginBottom: "0.75rem" }}>
+              A quiet end-of-day look at the values behind the food — not the calories in it.
+              Check whatever happened to be true today. There are no streaks here, on purpose:
+              each morning this resets to a blank page. Yesterday isn't a chain to maintain,
+              and a day with no checkmarks is just a day.
+            </p>
+            <div className="rounded-2xl p-5" style={{ background: COLORS.surface, border: `1px solid ${COLORS.line}` }}>
+              <div className="space-y-2">
+                {IMPACT_QUESTIONS.map((q) => {
+                  const on = impactChecks.includes(q.id);
+                  return (
+                    <button key={q.id} onClick={() => toggleImpact(q.id)}
+                      className="w-full flex items-center gap-3 text-left rounded-xl px-3 py-2"
+                      style={{ background: on ? `${COLORS.gold}18` : "transparent", border: `1px solid ${on ? COLORS.gold : COLORS.line}` }}>
+                      <span className="flex items-center justify-center rounded-full"
+                        style={{ width: 20, height: 20, flexShrink: 0, border: `2px solid ${on ? COLORS.gold : COLORS.inkSoft}`, background: on ? COLORS.gold : "transparent", color: "#fff", fontSize: "0.7rem" }}>
+                        {on ? "✓" : ""}
+                      </span>
+                      <span style={{ fontSize: "0.85rem", color: COLORS.ink }}>{q.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              {impactChecks.length > 0 && (
+                <p className="mt-3" style={{ fontSize: "0.82rem", color: COLORS.inkSoft }}>
+                  {impactChecks.length === 1 ? "One act of care today." : `${impactChecks.length} acts of care today.`} That's enough.
+                </p>
+              )}
+            </div>
+          </Fold>
+
+          {/* the seed library */}
+          <Fold title={'Seed library'} icon={Sprout} color={COLORS.gold}>
+            <p style={{ color: COLORS.inkSoft, fontSize: "0.9rem", marginBottom: "0.75rem" }}>
+              Every fruit you eat is offering you its next generation. Saving seeds is the
+              most direct "give life back" there is — dry them on a paper towel, keep them in
+              a labeled envelope somewhere cool and dark, and record them here so spring finds
+              you ready.
+            </p>
+            <div className="rounded-2xl p-5" style={{ background: COLORS.surface, border: `1px solid ${COLORS.line}` }}>
+              <div className="grid grid-cols-2 gap-2">
+                <input value={newSeed.name} placeholder="Seed (e.g. butternut squash)"
+                  onChange={(e) => setNewSeed({ ...newSeed, name: e.target.value })}
+                  className="rounded-lg px-3 py-2" style={inputStyle} />
+                <input value={newSeed.notes} placeholder="Notes (from the good one!)"
+                  onChange={(e) => setNewSeed({ ...newSeed, notes: e.target.value })}
+                  className="rounded-lg px-3 py-2" style={inputStyle} />
+              </div>
+              <button onClick={addSeed}
+                className="mt-2 px-4 py-2 rounded-full text-sm font-medium"
+                style={{ background: COLORS.gold, color: "#fff" }}>
+                Save to library
+              </button>
+              {seedLibrary.length > 0 && (
+                <div className="mt-3 space-y-2">
+                  {seedLibrary.map((s) => (
+                    <div key={s.id} className="flex items-center justify-between rounded-xl px-3 py-2"
+                      style={{ border: `1px solid ${COLORS.line}` }}>
+                      <div>
+                        <span style={{ fontSize: "0.85rem", fontWeight: 600 }}>{s.name}</span>
+                        {s.notes && <span style={{ fontSize: "0.78rem", color: COLORS.inkSoft }}> — {s.notes}</span>}
+                        <span style={{ fontSize: "0.7rem", color: COLORS.inkSoft }}> · saved {s.date}</span>
+                      </div>
+                      <button onClick={() => removeSeed(s.id)}><Trash2 size={14} color={COLORS.inkSoft} /></button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </Fold>
+
+          {/* planting notes */}
+          <Fold title={'Planting notes'} icon={CalendarDays} color={COLORS.calm}>
+            <p style={{ color: COLORS.inkSoft, fontSize: "0.9rem", marginBottom: "0.75rem" }}>
+              A simple list of what you mean to plant and when — "tomato seeds indoors, late
+              March," "garlic cloves, October." One honest note: this page can't ring your
+              phone; it's a list you visit, not an alarm. Check it when the seasons turn.
+            </p>
+            <div className="rounded-2xl p-5" style={{ background: COLORS.surface, border: `1px solid ${COLORS.line}` }}>
+              <div className="flex gap-2">
+                <input value={newPlant} placeholder="What to plant, and roughly when"
+                  onChange={(e) => setNewPlant(e.target.value)}
+                  className="rounded-lg px-3 py-2 w-full" style={inputStyle} />
+                <button onClick={addPlant}
+                  className="px-4 py-2 rounded-full text-sm font-medium"
+                  style={{ background: COLORS.calm, color: "#fff", flexShrink: 0 }}>
+                  Add
+                </button>
+              </div>
+              {plantList.length > 0 && (
+                <div className="mt-3 space-y-2">
+                  {plantList.map((p) => (
+                    <div key={p.id} className="flex items-center justify-between rounded-xl px-3 py-2"
+                      style={{ border: `1px solid ${COLORS.line}`, opacity: p.done ? 0.55 : 1 }}>
+                      <button onClick={() => togglePlant(p.id)} className="flex items-center gap-2 text-left">
+                        <span style={{ fontSize: "0.85rem", textDecoration: p.done ? "line-through" : "none" }}>
+                          {p.name}
+                        </span>
+                        {p.done && <span style={{ fontSize: "0.72rem", color: COLORS.gold }}>planted 🌱</span>}
+                      </button>
+                      <button onClick={() => removePlant(p.id)}><Trash2 size={14} color={COLORS.inkSoft} /></button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </Fold>
+
+          {/* compost & waste — gentle tallies, not judgments */}
+          <Fold title={'Compost & rescue tallies'} icon={RotateCcw} color={COLORS.gold}>
+            <p style={{ color: COLORS.inkSoft, fontSize: "0.9rem", marginBottom: "0.75rem" }}>
+              Three simple lifetime counts — tap when it happens. The tossed count isn't a
+              judgment; noticing is the whole practice. Even the compost bin turns "tossed"
+              into soil eventually.
+            </p>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+              <button onClick={() => bumpTracker("compost")} className="rounded-xl p-3 text-center"
+                style={{ background: COLORS.surface, border: `1px solid ${COLORS.line}` }}>
+                <div className="display" style={{ fontSize: "1.4rem", color: "#8A9A46", fontWeight: 600 }}>{compostCount}</div>
+                <div style={{ fontSize: "0.72rem", color: COLORS.inkSoft }}>composted · tap +1</div>
+              </button>
+              <button onClick={() => bumpTracker("rescued")} className="rounded-xl p-3 text-center"
+                style={{ background: COLORS.surface, border: `1px solid ${COLORS.line}` }}>
+                <div className="display" style={{ fontSize: "1.4rem", color: COLORS.gold, fontWeight: 600 }}>{wasteRescued}</div>
+                <div style={{ fontSize: "0.72rem", color: COLORS.inkSoft }}>food rescued · tap +1</div>
+              </button>
+              <button onClick={() => bumpTracker("tossed")} className="rounded-xl p-3 text-center"
+                style={{ background: COLORS.surface, border: `1px solid ${COLORS.line}` }}>
+                <div className="display" style={{ fontSize: "1.4rem", color: COLORS.inkSoft, fontWeight: 600 }}>{wasteTossed}</div>
+                <div style={{ fontSize: "0.72rem", color: COLORS.inkSoft }}>had to toss · tap +1</div>
+              </button>
+              <div className="rounded-xl p-3 text-center"
+                style={{ background: `${COLORS.calm}10`, border: `1px solid ${COLORS.calm}40` }}>
+                <div className="display" style={{ fontSize: "1.4rem", color: COLORS.calm, fontWeight: 600 }}>
+                  {compostCount + wasteRescued}
+                </div>
+                <div style={{ fontSize: "0.72rem", color: COLORS.inkSoft }}>given back to the circle</div>
+              </div>
+            </div>
+          </Fold>
+
+          {/* give life back — challenges */}
+          <Fold title={'Give life back — challenges'} icon={Sparkles} color={COLORS.gold}>
+            <p style={{ color: COLORS.inkSoft, fontSize: "0.9rem", marginBottom: "0.75rem" }}>
+              Small, real acts that put life back into the world. No deadlines, no order, no
+              streaks — pick one whenever you feel like it, and check it off whenever it's
+              done. Done ones stay done; the world keeps the difference.
+            </p>
+            <div className="space-y-2">
+              {CHALLENGES.map((c) => {
+                const done = challengesDone.includes(c.id);
+                return (
+                  <button key={c.id} onClick={() => toggleChallenge(c.id)}
+                    className="w-full flex items-start gap-3 text-left rounded-xl px-4 py-3"
+                    style={{ background: done ? `${COLORS.gold}14` : COLORS.surface, border: `1px solid ${done ? COLORS.gold : COLORS.line}` }}>
+                    <span className="flex items-center justify-center rounded-full"
+                      style={{ width: 20, height: 20, flexShrink: 0, marginTop: 1, border: `2px solid ${done ? COLORS.gold : COLORS.inkSoft}`, background: done ? COLORS.gold : "transparent", color: "#fff", fontSize: "0.7rem" }}>
+                      {done ? "✓" : ""}
+                    </span>
+                    <span style={{ fontSize: "0.85rem", color: COLORS.ink, opacity: done ? 0.7 : 1 }}>{c.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </Fold>
+
+          {/* living guides */}
+          <Fold title={'Living guides'} icon={BookOpen} color={COLORS.calm}>
+            <p style={{ color: COLORS.inkSoft, fontSize: "0.9rem", marginBottom: "0.75rem" }}>
+              The lifestyle beyond the plate: growing, gathering, building, and giving back.
+            </p>
+            <div className="space-y-2">
+              {LIVING_GUIDES.map((g, i) => {
+                const open = openGuide === i;
+                return (
+                  <div key={g.id} className="rounded-xl overflow-hidden"
+                    style={{ background: COLORS.surface, border: `1px solid ${COLORS.line}` }}>
+                    <button onClick={() => setOpenGuide(open ? null : i)}
+                      className="w-full flex items-center justify-between px-4 py-3 text-left">
+                      <span style={{ fontSize: "0.9rem", fontWeight: 600 }}>{g.name}</span>
+                      <ChevronDown size={16} color={COLORS.inkSoft}
+                        style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform 0.2s" }} />
+                    </button>
+                    {open && (
+                      <div className="px-4 pb-4">
+                        <p style={{ fontSize: "0.85rem", color: COLORS.ink }}>{g.body}</p>
+                        {g.diagrams && (
+                          <div className="mt-3 rounded-xl p-3" style={{ background: `${COLORS.gold}0C`, border: `1px solid ${COLORS.line}` }}>
+                            <div className="flex flex-wrap gap-2 mb-2">
+                              <FilterPill active={hugelView === "mound"} onClick={() => setHugelView("mound")} label="Classic mound" />
+                              <FilterPill active={hugelView === "lumber"} onClick={() => setHugelView("lumber")} label="Lumber raised bed" />
+                              <FilterPill active={hugelView === "metal"} onClick={() => setHugelView("metal")} label="Metal walls" />
+                            </div>
+                            {hugelView === "mound" && <HugelMoundDiagram />}
+                            {hugelView === "lumber" && <HugelBedDiagram wall="lumber" />}
+                            {hugelView === "metal" && <HugelBedDiagram wall="metal" />}
+                            <HugelLegend />
+                          </div>
+                        )}
+                        {g.lists && g.lists.map((list) => (
+                          <div key={list.title} className="mt-3">
+                            <p style={{ fontSize: "0.8rem", fontWeight: 600, color: COLORS.clay, marginBottom: "0.25rem" }}>
+                              {list.title}
+                            </p>
+                            <ul className="space-y-1" style={{ fontSize: "0.82rem", color: COLORS.ink }}>
+                              {list.items.map((line, j) => (
+                                <li key={j} className="flex gap-2">
+                                  <span style={{ color: COLORS.inkSoft }}>•</span>
+                                  <span>{line}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </Fold>
+
+          {/* the traditions vault — record, keep, share */}
+          <Fold title={'The traditions vault'} icon={BookOpen} color={COLORS.gold}>
+            <p style={{ color: COLORS.inkSoft, fontSize: "0.9rem", marginBottom: "0.75rem" }}>
+              Traditions are living things too, and they die when no one records them. This is
+              a place to write down how your family or your people do it — the hunting customs,
+              the gathering knowledge, the way the harvest is processed, the words of thanks
+              spoken over it, in whoever's voice taught you. Everything saves to this device's
+              memory. Export it as a file to keep it safe and pass it on — anyone can upload
+              that file here and receive every tradition inside. Knowledge that traveled by
+              firelight for ten thousand years can travel this way too.
+            </p>
+            <div className="rounded-2xl p-5" style={{ background: COLORS.surface, border: `1px solid ${COLORS.line}` }}>
+              <div className="grid grid-cols-2 gap-2">
+                <input value={newTradition.title} placeholder="Name of the tradition"
+                  onChange={(e) => setNewTradition({ ...newTradition, title: e.target.value })}
+                  className="rounded-lg px-3 py-2" style={inputStyle} />
+                <input value={newTradition.people} placeholder="Whose it is (family, tribe, region)"
+                  onChange={(e) => setNewTradition({ ...newTradition, people: e.target.value })}
+                  className="rounded-lg px-3 py-2" style={inputStyle} />
+              </div>
+              <select value={newTradition.category}
+                onChange={(e) => setNewTradition({ ...newTradition, category: e.target.value })}
+                className="rounded-lg px-3 py-2 mt-2 w-full" style={inputStyle}>
+                {TRADITION_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+              <textarea value={newTradition.body} rows={5}
+                placeholder="Tell it the way it was told to you — the steps, the words, the who-taught-whom, the 'until it smells right.' Exact wording matters; that's the voice that survives."
+                onChange={(e) => setNewTradition({ ...newTradition, body: e.target.value })}
+                className="rounded-lg px-3 py-2 mt-2 w-full" style={inputStyle} />
+              <div className="flex gap-2 mt-2 flex-wrap">
+                <button onClick={addTradition}
+                  className="px-4 py-2 rounded-full text-sm font-medium"
+                  style={{ background: COLORS.gold, color: "#fff" }}>
+                  <Save size={13} style={{ display: "inline", marginRight: 4 }} />
+                  Record it
+                </button>
+                <button onClick={exportTraditions}
+                  className="px-4 py-2 rounded-full text-sm font-medium"
+                  style={{ border: `1px solid ${COLORS.calm}`, color: COLORS.calm }}>
+                  Download to share ({traditions.length})
+                </button>
+                <button onClick={() => importRef.current && importRef.current.click()}
+                  className="px-4 py-2 rounded-full text-sm font-medium"
+                  style={{ border: `1px solid ${COLORS.calm}`, color: COLORS.calm }}>
+                  Upload a traditions file
+                </button>
+                <input ref={importRef} type="file" accept=".json,application/json"
+                  onChange={importTraditions} style={{ display: "none" }} />
+              </div>
+              {tradMessage && (
+                <p className="mt-2" style={{ fontSize: "0.8rem", color: COLORS.calm }}>{tradMessage}</p>
+              )}
+
+              {traditions.length > 0 && (
+                <div className="mt-4 space-y-2">
+                  {traditions.map((t, i) => {
+                    const open = openTraditionEntry === i;
+                    return (
+                      <div key={t.id} className="rounded-xl overflow-hidden"
+                        style={{ border: `1px solid ${COLORS.line}` }}>
+                        <button onClick={() => setOpenTraditionEntry(open ? null : i)}
+                          className="w-full flex items-center justify-between px-3 py-2 text-left">
+                          <span>
+                            <span style={{ fontSize: "0.85rem", fontWeight: 600 }}>{t.title}</span>
+                            <span style={{ fontSize: "0.72rem", color: COLORS.inkSoft }}>
+                              {" "}· {t.category}{t.people ? ` · ${t.people}` : ""}
+                            </span>
+                          </span>
+                          <ChevronDown size={14} color={COLORS.inkSoft}
+                            style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform 0.2s", flexShrink: 0 }} />
+                        </button>
+                        {open && (
+                          <div className="px-3 pb-3">
+                            <p style={{ fontSize: "0.83rem", color: COLORS.ink, whiteSpace: "pre-wrap" }}>{t.body}</p>
+                            <div className="flex items-center justify-between mt-2">
+                              <span style={{ fontSize: "0.7rem", color: COLORS.inkSoft }}>recorded {t.recorded}</span>
+                              <button onClick={() => removeTradition(t.id)}>
+                                <Trash2 size={13} color={COLORS.inkSoft} />
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </Fold>
+
+          {/* guard against perfectionism / eating disorders */}
+          <Fold title={'There is no perfect way to do this'} defaultOpen={true}>
+            <p style={{ color: COLORS.inkSoft, fontSize: "0.9rem", marginBottom: "1rem" }}>
+              Life is built so that something must give up its life for anything else to keep
+              living — that's true for you, for every animal, and for every plant. This app
+              isn't about reaching a flawless, harm-free way of eating. That doesn't exist.
+              It's about honoring what's given, on the days you can, without punishing yourself
+              on the days you can't.
+            </p>
+
+            <p style={{ color: COLORS.inkSoft, fontSize: "0.9rem", marginBottom: "0.75rem" }}>
+              History shows what happens when devotion tips into extremes. These stories are
+              shared as warnings, not examples to follow:
+            </p>
+            <div className="space-y-2 mb-6">
+              {CAUTIONS.map((c) => (
+                <div key={c.tradition} className="rounded-xl p-4"
+                  style={{ background: COLORS.surface, border: `1px solid ${COLORS.line}` }}>
+                  <div style={{ fontWeight: 600, fontSize: "0.85rem", color: COLORS.clay }}>{c.tradition}</div>
+                  <p style={{ fontSize: "0.85rem", marginTop: "0.35rem" }}>{c.story}</p>
+                  <p style={{ fontSize: "0.8rem", color: COLORS.inkSoft, marginTop: "0.35rem" }}>
+                    <strong style={{ color: COLORS.ink }}>Why it matters: </strong>{c.lesson}
+                  </p>
+                </div>
+              ))}
+            </div>
+
+            <div className="rounded-xl p-4 mb-4" style={{ background: `${COLORS.calm}18`, border: `1px solid ${COLORS.calm}55` }}>
+              <p style={{ fontSize: "0.85rem", fontWeight: 600, marginBottom: "0.4rem" }}>
+                A gentle check-in with yourself
+              </p>
+              <p style={{ fontSize: "0.85rem", color: COLORS.inkSoft }}>
+                If this way of eating starts to bring more guilt than peace — if you're skipping
+                meals to feel "good," dreading food instead of appreciating it, or measuring
+                your worth by how little you eat — that's not deeper mindfulness. That's a sign
+                to pause and talk to someone, not to try harder. An eating disorder is a real
+                medical condition, not a personal failing, and it's treatable.
+              </p>
+            </div>
+
+            <div className="rounded-xl p-4 mb-4" style={{ background: `${COLORS.calm}18`, border: `1px solid ${COLORS.calm}55` }}>
+              <p style={{ fontSize: "0.85rem", fontWeight: 600, marginBottom: "0.4rem" }}>
+                A word on overeating
+              </p>
+              <p style={{ fontSize: "0.85rem", color: COLORS.inkSoft }}>
+                Eating past fullness, again and again, is very often the mind soothing itself —
+                using food to handle stress, sadness, boredom, or loneliness, because at some
+                point that worked. Over time, that pattern can lead to weight gain or obesity.
+                That's a result of a learned habit, not a character flaw, and not something
+                that's your fault. If you're here, reading this, trying to eat with more
+                attention — that's already the first step, and it's a real one. Well done.
+                Like any learned habit, this one can change too, with time and practice, not
+                with punishment.
+              </p>
+            </div>
+
+            <div className="rounded-xl p-4 flex items-start gap-3"
+              style={{ background: COLORS.surface, border: `1px solid ${COLORS.line}` }}>
+              <LifeBuoy size={20} color={COLORS.clay} style={{ flexShrink: 0, marginTop: 2 }} />
+              <div>
+                <p style={{ fontSize: "0.85rem", fontWeight: 600 }}>National Alliance for Eating Disorders</p>
+                <p style={{ fontSize: "0.85rem", color: COLORS.inkSoft }}>
+                  Free, confidential helpline staffed by licensed therapists: <strong>1-866-662-1235</strong>
+                  {" "}(Mon–Fri, 9am–7pm ET)
+                </p>
+              </div>
+            </div>
+          </Fold>
+
+          <footer className="text-center py-6" style={{ color: COLORS.inkSoft, fontSize: "0.8rem" }}>
+            <p style={{ maxWidth: "32rem", margin: "0 auto 0.5rem" }}>
+              "I don't prescribe to know a perfect way to live. I just wanted to create an app
+              aimed at reconnecting the world with the idea that food is sacred, and the life
+              given for us to continue should be honored."
+            </p>
+            Do your best, for as long as you're able. Nothing here is worth your peace of mind.
+          </footer>
+        </main>
+      )}
+    </div>
+  );
+}
+
+function RecipeCard({ recipe, onSave, onAddToShopping, proteinInfoOpen, setProteinInfoOpen }) {
+  const n = recipe.nutrition || {};
+  return (
+    <div className="rounded-2xl p-5 mt-4" style={{ background: COLORS.surface, border: `1px solid ${COLORS.line}` }}>
+      <h3 className="display" style={{ fontSize: "1.1rem", fontWeight: 600 }}>{recipe.title}</h3>
+      <p style={{ fontSize: "0.8rem", color: COLORS.inkSoft, marginBottom: "0.75rem" }}>
+        {recipe.culture} · Serves {recipe.servings} · {(recipe.dietary_tags || []).join(", ")}
+      </p>
+
+      <h4 style={{ fontSize: "0.85rem", fontWeight: 600, marginTop: "0.75rem" }}>Ingredients</h4>
+      <ul style={{ fontSize: "0.85rem", marginTop: "0.35rem" }} className="space-y-1">
+        {(recipe.ingredients || []).map((ing, i) => (
+          <li key={i}>{ing.amount} {ing.name}</li>
+        ))}
+      </ul>
+
+      <h4 style={{ fontSize: "0.85rem", fontWeight: 600, marginTop: "1rem" }}>Steps</h4>
+      <ol style={{ fontSize: "0.85rem", marginTop: "0.35rem" }} className="space-y-1.5 list-decimal list-inside">
+        {(recipe.steps || []).map((s, i) => <li key={i}>{s}</li>)}
+      </ol>
+
+      <h4 style={{ fontSize: "0.85rem", fontWeight: 600, marginTop: "1rem" }}>Nutrition (per serving)</h4>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-2">
+        <Stat label="Calories" value={n.calories} color={COLORS.ink} />
+        <Stat label="Protein (g)" value={n.protein_g} color={COLORS.clay} />
+        <Stat label="Carbs (g)" value={n.carbs_g} color={COLORS.gold} />
+        <Stat label="Fat (g)" value={n.fat_g} color={COLORS.calm} />
+      </div>
+
+      <div className="mt-3 rounded-xl p-3" style={{ background: `${COLORS.calm}18` }}>
+        <button onClick={() => setProteinInfoOpen(!proteinInfoOpen)}
+          className="flex items-center gap-2 text-sm font-medium">
+          <span>{n.protein_complete ? "✓ Complete protein" : "△ Incomplete protein"}</span>
+          <Info size={14} color={COLORS.calm} />
+        </button>
+        {proteinInfoOpen && (
+          <div style={{ fontSize: "0.8rem", color: COLORS.inkSoft, marginTop: "0.4rem" }}>
+            <p style={{ marginBottom: "0.4rem" }}>
+              <strong style={{ color: COLORS.ink }}>What does this mean? </strong>
+              Protein is built from little pieces called amino acids. Your body needs 9 of
+              them from food — it can't make these on its own. A "complete" protein has all
+              9 in one place, like meat, eggs, dairy, soy, or quinoa. An "incomplete" one is
+              missing some, like beans by themselves. That's not a problem — just eat a couple
+              of incomplete ones together over the day (like beans and rice) and your body
+              puts the pieces together just fine.
+            </p>
+            <p><strong style={{ color: COLORS.ink }}>For this dish: </strong>{n.protein_note}</p>
+          </div>
+        )}
+      </div>
+
+      <div className="flex gap-2 mt-4 flex-wrap">
+        <button onClick={onSave}
+          className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium"
+          style={{ background: COLORS.gold, color: "#fff" }}>
+          <Save size={14} /> Save this recipe
+        </button>
+        <button onClick={onAddToShopping}
+          className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium"
+          style={{ background: "transparent", border: `1px solid ${COLORS.clay}`, color: COLORS.clay }}>
+          <ShoppingBasket size={14} /> Add to shopping list
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function Field({ label, children, full }) {
+  return (
+    <div className={full ? "col-span-2" : ""}>
+      <label style={{ fontSize: "0.75rem", color: COLORS.inkSoft, display: "block", marginBottom: "0.25rem" }}>
+        {label}
+      </label>
+      {children}
+    </div>
+  );
+}
+
+function Stat({ label, value, color }) {
+  return (
+    <div className="rounded-xl p-3 text-center" style={{ background: COLORS.surface, border: `1px solid ${COLORS.line}` }}>
+      <div className="display" style={{ fontSize: "1.4rem", color, fontWeight: 600 }}>{value}</div>
+      <div style={{ fontSize: "0.7rem", color: COLORS.inkSoft }}>{label}</div>
+    </div>
+  );
+}
+
+function Fold({ title, icon, color, defaultOpen, children }) {
+  const [open, setOpen] = useState(!!defaultOpen);
+  const IconC = icon;
+  return (
+    <section className="rounded-2xl overflow-hidden"
+      style={{ border: `1px solid ${COLORS.line}`, background: COLORS.surface }}>
+      <button onClick={() => setOpen(!open)}
+        className="w-full flex items-center justify-between px-4 py-3 text-left">
+        <span className="flex items-center gap-2">
+          {IconC && <IconC size={18} color={color || COLORS.gold} />}
+          <span className="display" style={{ fontSize: "1.1rem", fontWeight: 600 }}>{title}</span>
+        </span>
+        <ChevronDown size={18} color={COLORS.inkSoft}
+          style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform 0.2s", flexShrink: 0 }} />
+      </button>
+      {open && <div className="px-4 pb-4">{children}</div>}
+    </section>
+  );
+}
+
+function FilterPill({ active, onClick, label }) {
+  return (
+    <button onClick={onClick} className="px-3 py-1 rounded-full text-xs font-medium"
+      style={{
+        background: active ? COLORS.ink : "transparent",
+        color: active ? "#fff" : COLORS.inkSoft,
+        border: `1px solid ${active ? COLORS.ink : COLORS.line}`,
+      }}>
+      {label}
+    </button>
+  );
+}
+
+const inputStyle = { background: "#fff", border: `1px solid ${COLORS.line}`, color: COLORS.ink };
